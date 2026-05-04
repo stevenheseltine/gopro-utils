@@ -994,6 +994,20 @@ def _copy_clips(results: list[ClipResult], dest_dir: Path) -> None:
     logging.info(f"Copied {len(results)} clip(s) to {dest_dir}")
 
 
+def _import_to_photos(paths: list[Path]) -> None:
+    existing = [p for p in paths if p.exists()]
+    if not existing:
+        logging.warning("[PHOTOS] No files found to import")
+        return
+    file_list = ", ".join(f'POSIX file "{p.resolve()}"' for p in existing)
+    script = f'tell application "Photos" to import {{{file_list}}}'
+    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=60)
+    if result.returncode != 0:
+        logging.error(f"[PHOTOS] Import failed: {result.stderr.strip()}")
+    else:
+        logging.info(f"[PHOTOS] Imported {len(existing)} clip(s) to Photos")
+
+
 def _run_analysis(
     clips: list[ClipInfo],
     client: anthropic.Anthropic | None,
@@ -1199,6 +1213,8 @@ def main() -> None:
                        help=f"Music level in the mix, 0.0–1.0 (default: {DEFAULT_MUSIC_VOLUME})")
     music.add_argument("--regen-music-prompt", action="store_true",
                        help="Re-generate the Claude music prompt from existing frame descriptions and update report.json")
+    parser.add_argument("--import-photos", action="store_true",
+                        help="Import generated highlight clips into Apple Photos after generation")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -1294,6 +1310,8 @@ def main() -> None:
         num_clips=args.clips,
     )
 
+    photos_import: list[Path] = output_reels  # default: import plain reels
+
     if args.music:
         if args.clips > 1:
             logging.warning("[MUSIC]  --music is not supported with --clips > 1 — skipping")
@@ -1320,11 +1338,16 @@ def main() -> None:
                 _generate_soundtrack(
                     reel_info.duration, music_prompt, beatoven_key, soundtrack_path
                 )
+                mixed_reel = output_dir / MUSIC_REEL_FILENAME
                 _mix_soundtrack(
                     reel_path, soundtrack_path,
-                    output_dir / MUSIC_REEL_FILENAME,
+                    mixed_reel,
                     args.music_volume, DEFAULT_ORIG_AUDIO_VOLUME,
                 )
+                photos_import = [mixed_reel]
+
+    if args.import_photos:
+        _import_to_photos(photos_import)
 
 
 if __name__ == "__main__":
