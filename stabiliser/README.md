@@ -52,7 +52,7 @@ brew install python@3.13
 Add it to your PATH so `python3` resolves to the Homebrew version:
 
 ```bash
-echo 'export PATH="/usr/local/opt/python@3.13/libexec/bin:$PATH"' >> ~/.zshrc
+echo 'export PATH="$(brew --prefix python@3.13)/libexec/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 

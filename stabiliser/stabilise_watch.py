@@ -15,6 +15,7 @@ import logging
 import re
 import shutil
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -26,8 +27,8 @@ from typing import NamedTuple
 # Config — edit these to match your setup
 # ---------------------------------------------------------------------------
 GYROFLOW = "/Applications/Gyroflow.app/Contents/MacOS/gyroflow"
-FFPROBE  = "/usr/local/bin/ffprobe"
-FFMPEG   = "/usr/local/bin/ffmpeg"
+FFPROBE  = shutil.which("ffprobe") or "/usr/local/bin/ffprobe"
+FFMPEG   = shutil.which("ffmpeg") or "/usr/local/bin/ffmpeg"
 
 DEFAULT_BASE_DIR = Path.home() / "Movies" / "GoPro-Utils" / "Stabiliser"
 
