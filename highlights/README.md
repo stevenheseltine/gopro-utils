@@ -410,3 +410,4 @@ Either way, the system prompt cache still applies across all batches in a single
 - **GPMF requires original files or sidecars** — GyroFlow strips the metadata stream when it renders. The Stabiliser tool handles this by writing a `.gpmf` sidecar file alongside each stabilised clip. If you are analysing footage that was stabilised externally (iMovie, DaVinci Resolve, etc.), motion scores will fall back to neutral (5.0).
 - **Long clips take time** — ffmpeg frame extraction is fast, but API calls take a second or two each. A 20-clip batch at 6 API calls per clip takes roughly 2–3 minutes.
 - **Single directory** — the tool scans one flat directory. It does not recurse into subdirectories.
+- **Activity-specific prompt** — the default `prompt.txt` is tuned for cycling footage. It will produce reasonable results for other action-camera activities, but scores will be less meaningful. Use `--prompt-file` to supply a prompt written for your activity.
