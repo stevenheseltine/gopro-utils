@@ -237,6 +237,42 @@ def get_capture_date(path: Path) -> date:
     )
 
 
+def _read_creation_time(path: Path) -> str | None:
+    """Return the raw creation_time string from the MP4 container, or None."""
+    try:
+        result = subprocess.run(
+            [FFPROBE, "-v", "quiet", "-print_format", "json", "-show_format", str(path)],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode == 0:
+            return json.loads(result.stdout).get("format", {}).get("tags", {}).get("creation_time")
+    except Exception:
+        pass
+    return None
+
+
+def _patch_creation_time(path: Path, creation_time: str) -> None:
+    """Re-write creation_time on a file using stream copy (no re-encode)."""
+    tmp = path.with_suffix(".meta_tmp" + path.suffix)
+    try:
+        result = subprocess.run(
+            [FFMPEG, "-v", "quiet", "-i", str(path),
+             "-c", "copy", "-metadata", f"creation_time={creation_time}",
+             "-y", str(tmp)],
+            capture_output=True, timeout=120,
+        )
+        if result.returncode == 0 and tmp.exists():
+            tmp.replace(path)
+            logging.info(f"[META]   Restored creation_time={creation_time} → {path.name}")
+        else:
+            logging.warning(f"[META]   Could not patch creation_time in {path.name}")
+    except Exception as exc:
+        logging.warning(f"[META]   creation_time patch failed for {path.name}: {exc}")
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+
+
 def _run_gyroflow(src: Path) -> subprocess.CompletedProcess:
     cmd = build_command(src)
     logging.info(f"[CMD]    {' '.join(cmd)}")
@@ -257,6 +293,7 @@ def _move_output(expected_output: Path, src: Path, processed_dir: Path) -> Path:
 def process_file(src: Path, dirs: Dirs) -> None:
     logging.info(f"[START]  {src.name}")
     expected_output = src.with_name(src.stem + OUTPUT_SUFFIX + src.suffix)
+    creation_time = _read_creation_time(src)
 
     try:
         result = _run_gyroflow(src)
@@ -283,6 +320,9 @@ def process_file(src: Path, dirs: Dirs) -> None:
         )
         shutil.move(str(src), dirs.failed / src.name)
         return
+
+    if creation_time:
+        _patch_creation_time(expected_output, creation_time)
 
     dest = _move_output(expected_output, src, dirs.processed)
     extract_gpmf_sidecar(src, dest.parent, dest.stem)
