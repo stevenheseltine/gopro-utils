@@ -10,7 +10,7 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 4. **Vision scoring** — sends each batch of frames to `claude-opus-4-7` with a cycling-specialist prompt; Claude scores visual appeal, action level, and composition for each frame. The system prompt is cached across batches to keep API costs low
 5. **Composite score** — combines the vision score (65%) and motion score (35%) into a single rank for each clip
 6. **Music prompt** — Claude Haiku synthesises the top frame descriptions into a Beatoven.ai music prompt and stores it in `report.json` for later use with `--music`
-7. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel (capped at 2 min 30, best-scoring moments first) to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD-HH-MM-SS/`, and optionally exports all qualifying moments as individual segment files or mixes in an AI soundtrack
+7. **Output** — prints a ranked table to the terminal, saves a JSON report and one or more 30-second highlight clips to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD/`, and optionally exports all qualifying moments as individual segment files or mixes in an AI soundtrack
 
 ## Requirements
 
@@ -88,15 +88,13 @@ echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.zshrc
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/
 ```
 
-Every run automatically produces outputs in a timestamped directory under `~/Movies/GoPro-Utils/Highlights/`:
+Every run produces outputs in a date-stamped directory under `~/Movies/GoPro-Utils/Highlights/`. Re-running on the same day overwrites previous outputs.
 
 1. A ranked table in the terminal
-2. `highlights.mp4` — a highlight reel capped at 2 min 30, built from the highest-scoring moments
+2. `highlights.mp4` — a 30-second highlight clip built from the best-scoring moments (or `highlights_1.mp4`, `highlights_2.mp4`, … with `--clips N`)
 3. `report.json` — a full JSON report with scores, frame-level detail, and a Claude-generated music prompt
 4. Individual segment files (if `--segments` is passed) — every qualifying moment, uncapped
 5. `highlights_with_music.mp4` + `soundtrack.wav` (if `--music` is passed) — reel with an AI-generated soundtrack mixed in
-
-Each run gets its own timestamped directory so previous outputs are never overwritten.
 
 Terminal output:
 
@@ -134,14 +132,20 @@ After the first run, `report.json` contains all the scoring data. Use `--from-re
 ```bash
 # Tighten the threshold and add a crossfade
 python3 ~/Dev/gopro-utils/highlights/highlights.py \
-  --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04-14-30-00/report.json \
+  --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04/report.json \
   --min-score 7.5 \
   --transition fade
 
 # Add a soundtrack to an existing reel
 python3 ~/Dev/gopro-utils/highlights/highlights.py \
-  --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04-14-30-00/report.json \
+  --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04/report.json \
   --music
+
+# Regenerate the music prompt with updated genre preferences, then generate 3 Strava clips
+python3 ~/Dev/gopro-utils/highlights/highlights.py \
+  --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04/report.json \
+  --regen-music-prompt \
+  --clips 3
 ```
 
 The Claude-generated music prompt is stored in `report.json` and reused automatically — no extra API call.
@@ -178,8 +182,9 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
 |---|---|---|
 | `--min-score` | `6.5` | Minimum combined frame score (1–10) to include |
 | `--max-per-clip` | auto | Override max highlight moments per clip (default: ~1 per 45 seconds, capped at 5) |
-| `--highlight-window` | `5` | Seconds either side of each qualifying moment (10s clips) |
-| `--max-reel-duration` | `150` | Cap the reel at this many seconds — best-scoring moments are picked first |
+| `--highlight-window` | `2` | Seconds either side of each qualifying moment (4s clips) |
+| `--max-reel-duration` | `30` | Maximum length per output clip in seconds |
+| `--clips` | `1` | Number of output clips — each covers a chronological third/quarter/etc. of the ride |
 | `--transition` | `none` | Transition style: `none` (hard cut, lossless), `fade` (crossfade), `fadeblack` |
 | `--transition-duration` | `0.5` | Length of each transition in seconds |
 
@@ -198,7 +203,7 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
 
 ### Overriding the output directory
 
-By default each run writes to a fresh timestamped directory. Pass `--output` to direct everything to a specific directory instead:
+By default each run writes to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD/`, overwriting any outputs from an earlier run the same day. Pass `--output` to direct everything to a specific directory instead:
 
 ```bash
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
@@ -232,12 +237,15 @@ usage: highlights.py [-h] [--top N] [--chronological] [--copy-to DIR]
                         [--no-vision] [--api-key API_KEY] [--output DIR]
                         [--from-report FILE] [--segments]
                         [--min-score N] [--highlight-window SECS]
+                        [--max-reel-duration SECS] [--clips N]
                         [--transition STYLE] [--transition-duration SECS]
+                        [--music] [--music-prompt TEXT] [--music-api-key KEY]
+                        [--music-volume LEVEL] [--regen-music-prompt]
                         [--verbose]
                         directory
 
 positional arguments:
-  directory                 Directory containing GoPro footage
+  directory                 Directory containing GoPro footage (not required with --from-report)
 
 options:
   --top N                   Show only the top N clips (default: all)
@@ -245,20 +253,22 @@ options:
   --copy-to DIR             Copy top clips to this directory
   --no-vision               Skip the vision API — motion data and neutral scores only
   --api-key API_KEY         Anthropic API key (default: ANTHROPIC_API_KEY env var)
-  --output DIR              Output directory for all outputs (default: ~/Movies/GoPro-Utils/Highlights/TIMESTAMP/)
+  --output DIR              Output directory (default: ~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD/)
   --prompt-file FILE        Custom scoring prompt (default: prompt.txt alongside the script)
   --from-report FILE        Skip analysis; re-run edit from an existing JSON report
   --segments                Also export each highlight moment as a separate file
   --min-score N             Minimum frame score to include in edit (default: 6.5)
   --max-per-clip N          Maximum highlight moments per clip (default: auto, ~1 per 45 sec)
-  --highlight-window SECS   Seconds either side of each highlight moment (default: 5)
-  --max-reel-duration SECS  Cap reel length; best-scoring moments picked first (default: 150)
-  --transition STYLE        Transition between clips: none, fade, fadeblack (default: none)
+  --highlight-window SECS   Seconds either side of each highlight moment (default: 2)
+  --max-reel-duration SECS  Maximum length per output clip in seconds (default: 30)
+  --clips N                 Number of output clips — each covers a chronological portion of the ride (default: 1)
+  --transition STYLE        Transition between segments: none, fade, fadeblack (default: none)
   --transition-duration S   Length of each transition in seconds (default: 0.5)
   --music                   Generate and mix an AI soundtrack via Beatoven.ai
   --music-prompt TEXT       Music generation prompt (default: Claude-generated, stored in report.json)
   --music-api-key KEY       Beatoven.ai API key (default: BEATOVEN_API_KEY env var)
   --music-volume LEVEL      Music level in the mix, 0.0–1.0 (default: 0.8)
+  --regen-music-prompt      Re-generate the Claude music prompt from existing frame descriptions
   --verbose, -v             Show debug-level detail
 ```
 
@@ -328,7 +338,7 @@ All tuning constants are at the top of `highlights.py`:
 
 | Variable | Default | Description |
 |---|---|---|
-| `DEFAULT_OUTPUT_BASE` | `~/Movies/GoPro-Utils/Highlights` | Root directory for timestamped run outputs |
+| `DEFAULT_OUTPUT_BASE` | `~/Movies/GoPro-Utils/Highlights` | Root directory for date-stamped run outputs |
 | `REPORT_FILENAME` | `report.json` | Name of the JSON report within the output directory |
 | `REEL_FILENAME` | `highlights.mp4` | Name of the highlight reel within the output directory |
 | `MODEL` | `claude-opus-4-7` | Anthropic model for vision scoring |
@@ -338,10 +348,10 @@ All tuning constants are at the top of `highlights.py`:
 | `FRAME_MAX_DIM` | `1280` | Maximum frame dimension sent to the API |
 | `W_VISION` | `0.65` | Vision score weight in composite |
 | `W_MOTION` | `0.35` | Motion score weight in composite |
-| `HIGHLIGHT_HALF_WIDTH` | `5.0` | Seconds either side of each qualifying moment (10s clips) |
+| `HIGHLIGHT_HALF_WIDTH` | `2.0` | Seconds either side of each qualifying moment (4s clips) |
 | `HIGHLIGHT_MERGE_GAP` | `1.0` | Merge highlight windows within this many seconds of each other |
 | `MIN_HIGHLIGHT_SCORE` | `6.5` | Default minimum frame score for highlight selection |
-| `MAX_REEL_DURATION` | `150.0` | Reel cap in seconds; best-scoring moments fill it first |
+| `MAX_REEL_DURATION` | `30.0` | Maximum length per output clip in seconds |
 | `_auto_moments_cap()` | — | Controls the per-clip moment cap formula (~1 per 45 sec, cap 5); edit the function body to change the scaling, or pass `--max-per-clip` to override at runtime |
 
 ### Tuning the scoring prompt
