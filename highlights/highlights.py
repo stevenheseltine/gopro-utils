@@ -1019,8 +1019,11 @@ def _generate_music_prompt_via_claude(
         messages=[{
             "role": "user",
             "content": (
-                "Based on these descriptions of the best moments in a GoPro highlight reel, "
+                "Based on these descriptions of the best moments in a GoPro cycling highlight reel, "
                 "write a single music generation prompt (under 30 words) for Beatoven.ai. "
+                "The genre must be EDM or tropical house. "
+                "Colour the mood and energy from the scene descriptions — "
+                "e.g. stormy moorland → darker driving drop; sunny open road → bright uplifting feel. "
                 "Output only the prompt, nothing else.\n\n"
                 f"{descriptions}"
             ),
@@ -1033,10 +1036,10 @@ def _derive_music_prompt(results: list[ClipResult]) -> str:
     avg_composite = sum(r.composite_score for r in results) / len(results)
     avg_motion    = sum(r.motion_score    for r in results) / len(results)
     if avg_composite >= 7.5 and avg_motion >= 6.5:
-        return "upbeat energetic action sports music, driving rhythm, fast-paced, exciting"
+        return "high-energy EDM, hard-hitting drop, driving bassline, intense and euphoric"
     if avg_composite >= 6.5 or avg_motion >= 6.0:
-        return "cinematic adventure music, inspiring, moderate tempo, outdoor"
-    return "ambient atmospheric music, calm, peaceful, scenic outdoor"
+        return "tropical house, uplifting melody, smooth groove, energetic outdoor feel"
+    return "tropical house, laid-back sunny vibe, warm chords, relaxed pace"
 
 
 def _generate_soundtrack(
