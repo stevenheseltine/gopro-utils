@@ -939,8 +939,8 @@ def build_edit(
                 break
 
             reel_segments = _cap_reel_segments(pool, max_reel_duration)
-            selected = set(reel_segments)
-            pool = [s for s in pool if s not in selected]
+            selected_ids = {id(s) for s in reel_segments}
+            pool = [s for s in pool if id(s) not in selected_ids]
 
             reel_total = sum(s.duration for s in reel_segments)
             suffix = f"_{clip_num}" if num_clips > 1 else ""
