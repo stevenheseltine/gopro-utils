@@ -445,6 +445,11 @@ def score_frames_batch(
             messages=[{"role": "user", "content": content}],
         )
         raw = _parse_score_response(response.content[0].text)
+        if len(raw) < len(batch):
+            logging.warning(
+                f"Vision API returned {len(raw)} scores for {len(batch)} frames — "
+                "missing frames will use neutral scores"
+            )
         results = []
         for i, (ts, _) in enumerate(batch):
             s = raw[i] if i < len(raw) else {}
@@ -606,7 +611,11 @@ def load_results_from_json(report_path: Path) -> tuple[list[ClipResult], str | N
         music_prompt = data.get("music_prompt")
 
     results = []
-    for entry in entries:
+    for i, entry in enumerate(entries):
+        if "clip" not in entry or "duration_seconds" not in entry:
+            logging.warning(f"report.json entry {i} missing required fields — skipping")
+            continue
+
         clip_path = Path(entry["clip"])
         clip_info = probe_clip(clip_path)
         if clip_info is None:
@@ -617,16 +626,18 @@ def load_results_from_json(report_path: Path) -> tuple[list[ClipResult], str | N
             )
 
         raw_frames = entry.get("frames") or entry.get("best_moments", [])
-        frame_scores = [
-            FrameScore(
-                timestamp=f["timestamp"],
-                visual=f["visual"],
-                action=f["action"],
-                composition=f["composition"],
-                description=f.get("description", ""),
-            )
-            for f in raw_frames
-        ]
+        frame_scores = []
+        for f in raw_frames:
+            try:
+                frame_scores.append(FrameScore(
+                    timestamp=f["timestamp"],
+                    visual=float(f["visual"]),
+                    action=float(f["action"]),
+                    composition=float(f["composition"]),
+                    description=f.get("description", ""),
+                ))
+            except (KeyError, TypeError, ValueError) as exc:
+                logging.warning(f"Skipping malformed frame entry in {clip_path.name}: {exc}")
 
         results.append(ClipResult(
             clip=clip_info,
@@ -1108,12 +1119,22 @@ def _generate_soundtrack(
 
     # 2. Poll until composed
     import time
+    BEATOVEN_MAX_RETRIES = 3
     status_url = f"{BEATOVEN_API_BASE}/api/v1/tasks/{task_id}"
     while True:
         time.sleep(BEATOVEN_POLL_INTERVAL)
-        req = urllib.request.Request(status_url, headers={"Authorization": f"Bearer {api_key}"})
-        with urllib.request.urlopen(req) as resp:
-            data = json.loads(resp.read())
+        for attempt in range(1, BEATOVEN_MAX_RETRIES + 1):
+            try:
+                req = urllib.request.Request(status_url, headers={"Authorization": f"Bearer {api_key}"})
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read())
+                break
+            except Exception as exc:
+                if attempt == BEATOVEN_MAX_RETRIES:
+                    logging.error(f"Beatoven status check failed after {BEATOVEN_MAX_RETRIES} attempts: {exc}")
+                    sys.exit(1)
+                logging.warning(f"Beatoven status check attempt {attempt} failed: {exc} — retrying")
+                time.sleep(5)
         status = data.get("status")
         if status == "composed":
             track_url = data["meta"]["track_url"]

@@ -452,6 +452,8 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
 
 Output: `highlights_with_music.mp4` alongside the existing `highlights.mp4`. The intermediate `soundtrack.wav` is also kept so you can use `--from-report` to remix without regenerating.
 
+`--music` applies to a single clip only. If you use `--clips N`, music generation is skipped with a warning — generate your clips first, then pick the one you want to score separately.
+
 | Flag | Default | Effect |
 |---|---|---|
 | `--music` | off | Enable soundtrack generation |
