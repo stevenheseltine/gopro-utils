@@ -281,13 +281,15 @@ Seconds where the GPMF motion profile exceeds the 80th percentile are also sampl
 
 Vision scoring uses `claude-opus-4-7`. Each API call contains 4 frames (resized to max 1280px) plus the system prompt. The system prompt is cache-controlled, so it is charged at the cached-read rate on every call after the first within a session.
 
-Rough estimates (as of 2026):
+Each API call sends 4 frames at up to 1280px. Image tokens are the dominant cost — roughly 1,200 tokens per frame, so ~4,800 input tokens per call plus a small output payload. At claude-opus-4-7 pricing ($5/1M input, $25/1M output) that works out to roughly **$0.025–0.03 per call**.
 
 | Clips | Avg duration | Approx. API calls | Approx. cost |
 |---|---|---|---|
-| 5 | 20 min | ~30 | ~$0.10 |
-| 10 | 1 hour | ~60 | ~$0.20 |
-| 20 | 1 hour | ~120 | ~$0.40 |
+| 5 | 5 min | ~20 | ~$0.50 |
+| 10 | 5 min | ~40 | ~$1.00 |
+| 20 | 5 min | ~80 | ~$2.00 |
+
+These are estimates based on the token pricing above — check your [Anthropic console](https://console.anthropic.com/) after a real run to calibrate against your actual footage.
 
 Use `--no-vision` to preview results before committing to a full run. Once you have a `report.json`, use `--from-report` to re-run the edit with different settings at no additional cost.
 
