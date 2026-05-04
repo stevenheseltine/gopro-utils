@@ -70,13 +70,6 @@ CLIP_EDGE_MARGIN = 3.0
 # ---------------------------------------------------------------------------
 
 
-class Segment(NamedTuple):
-    clip: "ClipInfo"
-    start: float       # seconds from clip start
-    duration: float    # seconds
-    score: float       # best combined frame score within the window
-
-
 @dataclass
 class ClipInfo:
     path: Path
@@ -128,6 +121,13 @@ class ClipResult:
     @property
     def best_moments(self) -> list[FrameScore]:
         return sorted(self.frame_scores, key=lambda f: f.combined, reverse=True)[:5]
+
+
+class Segment(NamedTuple):
+    clip: ClipInfo
+    start: float       # seconds from clip start
+    duration: float    # seconds
+    score: float       # best combined frame score within the window
 
 
 # ---------------------------------------------------------------------------
@@ -390,7 +390,7 @@ def _load_prompt(path: Path) -> str:
         sys.exit(1)
 
 
-def _parse_score_response(text: str, n_frames: int) -> list[dict]:
+def _parse_score_response(text: str) -> list[dict]:
     text = text.strip()
     if text.startswith("```"):
         parts = text.split("```")
@@ -438,7 +438,7 @@ def score_frames_batch(
             }],
             messages=[{"role": "user", "content": content}],
         )
-        raw = _parse_score_response(response.content[0].text, n)
+        raw = _parse_score_response(response.content[0].text)
         results = []
         for i, (ts, _) in enumerate(batch):
             s = raw[i] if i < len(raw) else {}
@@ -788,7 +788,7 @@ def _concat_xfade(
     durations = [_segment_duration(p) for p in segment_paths]
 
     # Warn if any segment is too short for the transition
-    for i, (p, d) in enumerate(zip(segment_paths, durations)):
+    for i, (_, d) in enumerate(zip(segment_paths, durations)):
         if d <= fade_dur * 2:
             logging.warning(
                 f"[EDIT]   Segment {i+1} is {d:.1f}s — shorter than 2× transition "
@@ -801,20 +801,16 @@ def _concat_xfade(
     for p in segment_paths:
         inputs += ["-i", str(p)]
 
-    base_cmd = (
-        ["ffmpeg", "-v", "quiet"]
-        + inputs
-        + ["-c:v", "h264_videotoolbox", "-b:v", "20M", "-c:a", "aac", "-b:a", "192k", "-y", str(output_path)]
-    )
+    encode = ["-c:v", "h264_videotoolbox", "-b:v", "20M", "-c:a", "aac", "-b:a", "192k", "-y", str(output_path)]
+
     if graph.filter_complex:
         cmd = (
-            ["ffmpeg", "-v", "quiet"]
-            + inputs
+            ["ffmpeg", "-v", "quiet"] + inputs
             + ["-filter_complex", graph.filter_complex, "-map", graph.video_map, "-map", graph.audio_map]
-            + ["-c:v", "h264_videotoolbox", "-b:v", "20M", "-c:a", "aac", "-b:a", "192k", "-y", str(output_path)]
+            + encode
         )
     else:
-        cmd = base_cmd
+        cmd = ["ffmpeg", "-v", "quiet"] + inputs + encode
 
     result = subprocess.run(cmd, capture_output=True, timeout=600)
     if result.returncode != 0:
