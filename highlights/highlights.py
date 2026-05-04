@@ -40,6 +40,7 @@ import numpy as np
 DEFAULT_OUTPUT_BASE = Path.home() / "Movies" / "GoPro-Utils" / "Highlights"
 REPORT_FILENAME    = "report.json"
 REEL_FILENAME      = "highlights.mp4"
+DEFAULT_PROMPT_FILE = Path(__file__).parent / "prompt.txt"
 
 MODEL = "claude-opus-4-7"
 VIDEO_EXTENSIONS = {".mp4", ".mov"}
@@ -381,7 +382,12 @@ def extract_frame(path: Path, timestamp: float, tmpdir: Path) -> Path | None:
 # Vision scoring
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = (Path(__file__).parent / "prompt.txt").read_text(encoding="utf-8").strip()
+def _load_prompt(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        print(f"ERROR: prompt file not found: {path}", file=sys.stderr)
+        sys.exit(1)
 
 
 def _parse_score_response(text: str, n_frames: int) -> list[dict]:
@@ -400,6 +406,7 @@ def _parse_score_response(text: str, n_frames: int) -> list[dict]:
 def score_frames_batch(
     client: anthropic.Anthropic,
     batch: list[tuple[float, Path]],
+    system_prompt: str,
 ) -> list[FrameScore]:
     content: list[dict] = []
     for ts, frame_path in batch:
@@ -426,7 +433,7 @@ def score_frames_batch(
             max_tokens=512,
             system=[{
                 "type": "text",
-                "text": SYSTEM_PROMPT,
+                "text": system_prompt,
                 "cache_control": {"type": "ephemeral"},
             }],
             messages=[{"role": "user", "content": content}],
@@ -459,6 +466,7 @@ def analyse_clip(
     clip: ClipInfo,
     client: anthropic.Anthropic | None,
     tmpdir: Path,
+    system_prompt: str,
 ) -> ClipResult:
     logging.info(f"[ANALYSE] {clip.path.name}  ({_fmt_duration(clip.duration)})")
 
@@ -492,7 +500,7 @@ def analyse_clip(
     if client is not None and frame_pairs:
         for i in range(0, len(frame_pairs), FRAMES_PER_BATCH):
             batch = frame_pairs[i: i + FRAMES_PER_BATCH]
-            scores = score_frames_batch(client, batch)
+            scores = score_frames_batch(client, batch, system_prompt)
             frame_scores.extend(scores)
             end_idx = min(i + FRAMES_PER_BATCH, len(frame_pairs))
             logging.info(f"  Scored frames {i+1}–{end_idx}/{len(frame_pairs)}")
@@ -955,12 +963,13 @@ def _copy_clips(results: list[ClipResult], dest_dir: Path) -> None:
 def _run_analysis(
     clips: list[ClipInfo],
     client: anthropic.Anthropic | None,
+    system_prompt: str,
 ) -> list[ClipResult]:
     results = []
     with tempfile.TemporaryDirectory(prefix="highlights_") as tmpdir:
         tmp = Path(tmpdir)
         for clip in clips:
-            results.append(analyse_clip(clip, client, tmp))
+            results.append(analyse_clip(clip, client, tmp, system_prompt))
     return results
 
 
@@ -987,6 +996,8 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=None, metavar="DIR",
                         help=f"Output directory for report.json, highlights.mp4, and any segments "
                              f"(default: {DEFAULT_OUTPUT_BASE}/YYYY-MM-DD-HH-MM-SS/)")
+    parser.add_argument("--prompt-file", type=Path, default=None, metavar="FILE",
+                        help=f"Path to a custom scoring prompt (default: {DEFAULT_PROMPT_FILE.name} in the script directory)")
     parser.add_argument("--from-report", type=Path, default=None, metavar="FILE",
                         help="Skip analysis; re-run edit from an existing JSON report")
     parser.add_argument("--segments", action="store_true",
@@ -1009,6 +1020,10 @@ def main() -> None:
     args = parser.parse_args()
 
     setup_logging(args.verbose)
+
+    system_prompt = _load_prompt(args.prompt_file or DEFAULT_PROMPT_FILE)
+    if args.prompt_file:
+        logging.info(f"Using custom prompt: {args.prompt_file}")
 
     run_dir = DEFAULT_OUTPUT_BASE / datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
@@ -1043,7 +1058,7 @@ def main() -> None:
         if not args.no_vision:
             client = _make_api_client(args.api_key)
 
-        results = _run_analysis(clips, client)
+        results = _run_analysis(clips, client, system_prompt)
 
     results.sort(key=lambda r: r.composite_score, reverse=True)
 

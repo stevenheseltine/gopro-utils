@@ -236,6 +236,7 @@ options:
   --no-vision               Skip the vision API — motion data and neutral scores only
   --api-key API_KEY         Anthropic API key (default: ANTHROPIC_API_KEY env var)
   --output DIR              Output directory for all outputs (default: ~/Movies/GoPro-Utils/Highlights/TIMESTAMP/)
+  --prompt-file FILE        Custom scoring prompt (default: prompt.txt alongside the script)
   --from-report FILE        Skip analysis; re-run edit from an existing JSON report
   --segments                Also export each highlight moment as a separate file
   --min-score N             Minimum frame score to include in edit (default: 6.5)
@@ -327,6 +328,19 @@ All tuning constants are at the top of `highlights.py`:
 | `MIN_HIGHLIGHT_SCORE` | `6.5` | Default minimum frame score for highlight selection |
 | `MAX_REEL_DURATION` | `180.0` | Reel cap in seconds; best-scoring moments fill it first |
 | `_auto_moments_cap()` | — | Controls the per-clip moment cap formula (~1 per 75 sec, cap 5); edit the function body to change the scaling, or pass `--max-per-clip` to override at runtime |
+
+### Tuning the scoring prompt
+
+The vision scoring criteria live in `highlights/prompt.txt` — plain text, edit it in any editor. Changes take effect immediately on the next run; no Python required.
+
+To experiment with a different prompt without overwriting the default:
+
+```bash
+cp ~/Dev/gopro-utils/highlights/prompt.txt ~/Movies/my_prompt.txt
+# edit ~/Movies/my_prompt.txt ...
+python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
+  --prompt-file ~/Movies/my_prompt.txt
+```
 
 ### Adjusting the scoring balance
 
