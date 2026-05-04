@@ -36,7 +36,7 @@ The watcher runs as a macOS LaunchAgent: drop footage into `~/Movies/Stabiliser/
 
 ## Auto Highlights
 
-**`auto_highlights/`** — scans a directory of footage, ranks every clip by visual and motion quality, and cuts a highlight reel.
+**`highlights/`** — scans a directory of footage, ranks every clip by visual and motion quality, and cuts a highlight reel.
 
 Combines two scoring signals:
 
@@ -45,7 +45,7 @@ Combines two scoring signals:
 
 The combined score ranks every clip and identifies the best moments within each one. The tool then cuts a highlight reel automatically — either as individual segments for iMovie or as a single concatenated file.
 
-→ [Full documentation](auto_highlights/README.md)
+→ [Full documentation](highlights/README.md)
 
 ---
 
