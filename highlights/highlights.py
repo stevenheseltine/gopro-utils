@@ -7,11 +7,11 @@ clips and surface the best moments within each one.
 
 Usage:
   python3 highlights.py ~/Movies/Footage/
-  python3 highlights.py ~/Movies/Footage/ --top 5 --copy-to ~/Movies/Best/
+  python3 highlights.py ~/Movies/Footage/ --top 5
   python3 highlights.py ~/Movies/Footage/ --no-vision      # motion analysis only
-  python3 highlights.py ~/Movies/Footage/ --output report.json
-  python3 highlights.py ~/Movies/Footage/ --edit-output highlight.mp4
-  python3 highlights.py ~/Movies/Footage/ --edit-output highlight.mp4 --min-score 7.0
+  python3 highlights.py ~/Movies/Footage/ --output ~/Movies/MyRun/
+  python3 highlights.py ~/Movies/Footage/ --segments
+  python3 highlights.py ~/Movies/Footage/ --min-score 7.0 --transition fade
 """
 
 import argparse
@@ -38,6 +38,8 @@ import numpy as np
 # ---------------------------------------------------------------------------
 
 DEFAULT_OUTPUT_BASE = Path.home() / "Movies" / "GoPro-Utils" / "Highlights"
+REPORT_FILENAME    = "report.json"
+REEL_FILENAME      = "highlights.mp4"
 
 MODEL = "claude-opus-4-7"
 VIDEO_EXTENSIONS = {".mp4", ".mov"}
@@ -899,8 +901,8 @@ def _assemble_reel(
 
 def build_edit(
     results: list[ClipResult],
-    output_path: Path | None,
-    segments_dir: Path | None,
+    output_dir: Path,
+    save_segments: bool,
     min_score: float,
     half_width: float,
     max_per_clip: int,
@@ -924,7 +926,7 @@ def build_edit(
         f"~{_fmt_duration(total)}  transition: {mode}"
     )
 
-    with tempfile.TemporaryDirectory(prefix="clip_edit_") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="highlights_edit_") as tmpdir:
         tmp = Path(tmpdir)
         segment_paths = _extract_segments(segments, tmp)
 
@@ -932,11 +934,10 @@ def build_edit(
             logging.error("[EDIT]   All segment extractions failed")
             return
 
-        if segments_dir is not None:
-            _save_segment_files(segment_paths, segments, segments_dir)
+        if save_segments:
+            _save_segment_files(segment_paths, segments, output_dir)
 
-        if output_path is not None:
-            _assemble_reel(segment_paths, output_path, total, transition, transition_duration, tmp)
+        _assemble_reel(segment_paths, output_dir / REEL_FILENAME, total, transition, transition_duration, tmp)
 
 
 # ---------------------------------------------------------------------------
@@ -980,7 +981,7 @@ def _run_analysis(
     client: anthropic.Anthropic | None,
 ) -> list[ClipResult]:
     results = []
-    with tempfile.TemporaryDirectory(prefix="clip_analyser_") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="highlights_") as tmpdir:
         tmp = Path(tmpdir)
         for clip in clips:
             results.append(analyse_clip(clip, client, tmp))
@@ -1007,16 +1008,13 @@ def main() -> None:
                         help="Skip the vision API — use motion data and neutral scores only")
     parser.add_argument("--api-key", type=str, default=None,
                         help="Anthropic API key (default: ANTHROPIC_API_KEY env var)")
-    parser.add_argument("--output", type=Path, default=None, metavar="FILE",
-                        help="Save full JSON report to FILE (default: <output-dir>/report.json)")
+    parser.add_argument("--output", type=Path, default=None, metavar="DIR",
+                        help=f"Output directory for report.json, highlights.mp4, and any segments "
+                             f"(default: {DEFAULT_OUTPUT_BASE}/YYYY-MM-DD-HH-MM-SS/)")
     parser.add_argument("--from-report", type=Path, default=None, metavar="FILE",
                         help="Skip analysis; re-run edit from an existing JSON report")
-    parser.add_argument("--edit-output", type=Path, default=None, metavar="FILE",
-                        help="Concatenate highlights into a single file (default: <output-dir>/highlights.mp4)")
     parser.add_argument("--segments", action="store_true",
-                        help="Export each highlight as a separate file")
-    parser.add_argument("--segments-dir", type=Path, default=None, metavar="DIR",
-                        help="Directory for segment files (default: <output-dir>/)")
+                        help="Also export each highlight moment as a separate file in the output directory")
     parser.add_argument("--min-score", type=float, default=MIN_HIGHLIGHT_SCORE, metavar="N",
                         help=f"Minimum frame score to include in the edit (default: {MIN_HIGHLIGHT_SCORE})")
     parser.add_argument("--max-per-clip", type=int, default=0, metavar="N",
@@ -1025,7 +1023,7 @@ def main() -> None:
                         help=f"Seconds either side of each highlight moment (default: {HIGHLIGHT_HALF_WIDTH})")
     parser.add_argument("--transition", default="none",
                         choices=["none", "fade", "fadeblack"],
-                        help="Transition for --edit-output: none (hard cut), fade, fadeblack (default: none)")
+                        help="Transition between clips: none (hard cut, lossless), fade, fadeblack (default: none)")
     parser.add_argument("--transition-duration", type=float, default=0.5, metavar="SECS",
                         help="Duration of each transition in seconds (default: 0.5)")
     parser.add_argument("--verbose", "-v", action="store_true")
@@ -1078,35 +1076,30 @@ def main() -> None:
 
     print_report(results)
 
-    if args.edit_output is None:
-        args.edit_output = run_dir / "highlights.mp4"
-    if args.output is None:
-        args.output = run_dir / "report.json"
+    output_dir = args.output or run_dir
 
-    save_json_report(results, args.output)
+    save_json_report(results, output_dir / REPORT_FILENAME)
 
     if args.copy_to:
         _copy_clips(results, args.copy_to)
 
-    segments_dir = (args.segments_dir or run_dir) if args.segments else None
-
-    if args.edit_output or args.segments_dir:
-        if args.no_vision:
-            logging.warning(
-                "[EDIT]   --no-vision was used so all frame scores are 5.0. "
-                "Pass --min-score below 5.0 or run without --no-vision for "
-                "meaningful highlight selection."
-            )
-        build_edit(
-            results,
-            output_path=args.edit_output,
-            segments_dir=segments_dir,
-            min_score=args.min_score,
-            half_width=args.highlight_window,
-            max_per_clip=args.max_per_clip,
-            transition=args.transition,
-            transition_duration=args.transition_duration,
+    if args.no_vision:
+        logging.warning(
+            "[EDIT]   --no-vision was used so all frame scores are 5.0. "
+            "Pass --min-score below 5.0 or run without --no-vision for "
+            "meaningful highlight selection."
         )
+
+    build_edit(
+        results,
+        output_dir=output_dir,
+        save_segments=args.segments,
+        min_score=args.min_score,
+        half_width=args.highlight_window,
+        max_per_clip=args.max_per_clip,
+        transition=args.transition,
+        transition_duration=args.transition_duration,
+    )
 
 
 if __name__ == "__main__":

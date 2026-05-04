@@ -137,20 +137,13 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
 
 ### Export individual segments for iMovie
 
-Pass `--segments` to export each highlight moment as its own file, in addition to the combined reel:
+Pass `--segments` to export each highlight moment as its own file alongside the combined reel:
 
 ```bash
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ --segments
 ```
 
-Segment files appear in the same timestamped run directory as the highlight reel. Override the location with `--segments-dir`:
-
-```bash
-python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
-  --segments --segments-dir ~/Movies/GoPro_highlights/
-```
-
-Files are named by source clip and timestamp range, e.g. `001_GX010308_stabilized_0m33s-0m43s.mp4`. Import the folder into iMovie and it treats each as its own clip — drag transitions between them naturally in the timeline.
+Files are named by source clip and timestamp range, e.g. `001_GX010308_stabilized_0m33s-0m43s.mp4`, and land in the same output directory as `highlights.mp4` and `report.json`. Import the folder into iMovie and it treats each as its own clip — drag transitions between them naturally in the timeline.
 
 The files are lossless stream copies of the original footage.
 
@@ -189,13 +182,16 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
   --transition fade --transition-duration 0.5
 ```
 
-### Overriding default output locations
+### Overriding the output directory
+
+By default each run writes to a fresh timestamped directory. Pass `--output` to direct everything to a specific directory instead:
 
 ```bash
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
-  --output ~/Movies/GoPro/my_report.json \
-  --edit-output ~/Movies/GoPro/my_edit.mp4
+  --output ~/Movies/ThisRide/
 ```
+
+`report.json`, `highlights.mp4`, and any segment files all go there.
 
 ### Motion-only mode (no API cost)
 
@@ -219,9 +215,8 @@ Shows per-clip debug detail: GPMF parse results, frame extraction progress, API 
 
 ```
 usage: highlights.py [-h] [--top N] [--chronological] [--copy-to DIR]
-                        [--no-vision] [--api-key API_KEY] [--output FILE]
-                        [--from-report FILE] [--edit-output FILE]
-                        [--segments] [--segments-dir DIR]
+                        [--no-vision] [--api-key API_KEY] [--output DIR]
+                        [--from-report FILE] [--segments]
                         [--min-score N] [--highlight-window SECS]
                         [--transition STYLE] [--transition-duration SECS]
                         [--verbose]
@@ -236,15 +231,13 @@ options:
   --copy-to DIR             Copy top clips to this directory
   --no-vision               Skip the vision API — motion data and neutral scores only
   --api-key API_KEY         Anthropic API key (default: ANTHROPIC_API_KEY env var)
-  --output FILE             Save JSON report to FILE (default: <output-dir>/report.json)
+  --output DIR              Output directory for all outputs (default: ~/Movies/GoPro-Utils/Highlights/TIMESTAMP/)
   --from-report FILE        Skip analysis; re-run edit from an existing JSON report
-  --edit-output FILE        Write highlight reel to FILE (default: <output-dir>/highlights.mp4)
-  --segments                Export each highlight as a separate file
-  --segments-dir DIR        Directory for segment files (default: <output-dir>/)
+  --segments                Also export each highlight moment as a separate file
   --min-score N             Minimum frame score to include in edit (default: 6.5)
   --max-per-clip N          Maximum highlight moments per clip (default: auto, ~1 per 75 sec)
   --highlight-window SECS   Seconds either side of each highlight moment (default: 4)
-  --transition STYLE        Transition for --edit-output: none, fade, fadeblack (default: none)
+  --transition STYLE        Transition between clips: none, fade, fadeblack (default: none)
   --transition-duration S   Length of each transition in seconds (default: 0.5)
   --verbose, -v             Show debug-level detail
 ```
@@ -315,6 +308,8 @@ All tuning constants are at the top of `highlights.py`:
 | Variable | Default | Description |
 |---|---|---|
 | `DEFAULT_OUTPUT_BASE` | `~/Movies/GoPro-Utils/Highlights` | Root directory for timestamped run outputs |
+| `REPORT_FILENAME` | `report.json` | Name of the JSON report within the output directory |
+| `REEL_FILENAME` | `highlights.mp4` | Name of the highlight reel within the output directory |
 | `MODEL` | `claude-opus-4-7` | Anthropic model for vision scoring |
 | `MAX_FRAMES_PER_CLIP` | `24` | Maximum frames sampled per clip |
 | `FRAMES_PER_BATCH` | `4` | Frames per API call |
