@@ -8,15 +8,15 @@ The **GoPro Hero 4K (2024)** records great footage but the intended workflow has
 
 - **No onboard stabilisation.** Unlike the Hero 12/13 with HyperSmooth, the Hero 4K has no in-camera stabilisation. Footage needs post-processing before it's usable.
 - **GoPro subscription dependency.** Quik's automatic highlight generation, cloud backup, and desktop editing features all require a paid subscription (~$50/year). The highlight algorithm runs on GoPro's servers, not yours.
-- **Cloud latency.** Both stabilisation and highlight generation depend on uploading footage to GoPro's servers first. For longer rides this means a significant wait before you can review anything — and the upload itself consumes bandwidth and time before any processing even starts.
-- **Phone storage.** The alternative to cloud upload is connecting the camera to your phone over Wi-Fi and importing directly into the Quik app. This avoids the upload wait but trades it for a different problem: GoPro footage is large, and importing to the phone quickly eats all available storage. Keeping footage off the phone and processing it directly on a Mac sidesteps this entirely.
+- **Phone storage.** The intended workflow is to connect the camera to your phone over Wi-Fi and import footage into the Quik app, where stabilisation is applied on-device for free. The catch: GoPro footage is large, and importing directly to the phone quickly eats all available storage. Any serious volume of riding makes this impractical without a subscription for cloud offload.
+- **Cloud latency.** With a subscription, footage is automatically uploaded to GoPro's servers for highlight generation and cloud backup. For longer rides this means a significant wait before you can review anything.
 - **No tunability.** Quik's highlight selection is a black box. You can't adjust what it considers interesting, weight it toward the moments that matter to you, or understand why it picked what it picked.
 
 These tools replace that workflow with something that runs entirely on your Mac:
 
 | Tool | Replaces |
 |---|---|
-| [Stabiliser](#stabiliser) | GoPro cloud stabilisation + HyperSmooth |
+| [Stabiliser](#stabiliser) | Quik on-device stabilisation + HyperSmooth |
 | [Highlights](#highlights) | GoPro Quik automatic highlights |
 
 The only external service used is the [Anthropic API](https://console.anthropic.com/) for vision scoring in the analyser — and that can be skipped with `--no-vision` if you want fully offline operation.
