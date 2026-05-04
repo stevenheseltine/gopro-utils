@@ -19,7 +19,7 @@ These tools replace that workflow with something that runs entirely on your Mac:
 | [Stabiliser](#stabiliser) | Quik on-device stabilisation + HyperSmooth |
 | [Highlights](#highlights) | GoPro Quik automatic highlights |
 
-The only external service used is the [Anthropic API](https://console.anthropic.com/) for vision scoring in the analyser — and that can be skipped with `--no-vision` if you want fully offline operation.
+The only external service used is the [Anthropic API](https://console.anthropic.com/) for vision scoring in the highlights tool — and that can be skipped with `--no-vision` if you want fully offline operation.
 
 ---
 
