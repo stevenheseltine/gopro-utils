@@ -930,24 +930,25 @@ def build_edit(
 
         path_by_key = {(s.clip.path, s.start): p for s, p in zip(all_segments, all_paths)}
 
-        pool = list(all_segments)
+        # Partition chronologically into num_clips buckets, pick best within each
+        n = len(all_segments)
+        bucket_size = -(-n // num_clips)  # ceiling division — earlier clips get the extra segment
         output_reels: list[Path] = []
 
         for clip_num in range(1, num_clips + 1):
-            if not pool:
-                logging.info(f"[EDIT]   No segments remaining for clip {clip_num} — stopping")
+            bucket = all_segments[(clip_num - 1) * bucket_size : clip_num * bucket_size]
+            if not bucket:
+                logging.info(f"[EDIT]   No segments in bucket for clip {clip_num} — stopping")
                 break
 
-            reel_segments = _cap_reel_segments(pool, max_reel_duration)
-            selected_ids = {id(s) for s in reel_segments}
-            pool = [s for s in pool if id(s) not in selected_ids]
-
+            reel_segments = _cap_reel_segments(bucket, max_reel_duration)
             reel_total = sum(s.duration for s in reel_segments)
             suffix = f"_{clip_num}" if num_clips > 1 else ""
             reel_path = output_dir / f"highlights{suffix}.mp4"
 
             logging.info(
-                f"[EDIT]   Clip {clip_num}/{num_clips}: {len(reel_segments)} segment(s), ~{_fmt_duration(reel_total)}"
+                f"[EDIT]   Clip {clip_num}/{num_clips}: {len(reel_segments)} segment(s) "
+                f"from {len(bucket)} candidates, ~{_fmt_duration(reel_total)}"
             )
 
             seg_paths = [path_by_key[(s.clip.path, s.start)] for s in reel_segments]
