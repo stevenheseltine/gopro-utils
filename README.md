@@ -16,7 +16,7 @@ These tools replace that workflow with something that runs entirely on your Mac:
 | Tool | Replaces |
 |---|---|
 | [Stabiliser](#stabiliser) | GoPro cloud stabilisation + HyperSmooth |
-| [Clip Analyser](#clip-analyser) | GoPro Quik automatic highlights |
+| [Auto Highlights](#auto-highlights) | GoPro Quik automatic highlights |
 
 The only external service used is the [Anthropic API](https://console.anthropic.com/) for vision scoring in the analyser — and that can be skipped with `--no-vision` if you want fully offline operation.
 
@@ -34,9 +34,9 @@ The watcher runs as a macOS LaunchAgent: drop footage into `~/Movies/Stabiliser/
 
 ---
 
-## Clip Analyser
+## Auto Highlights
 
-**`clip_analyser/`** — scans a directory of footage, ranks every clip by visual and motion quality, and cuts a highlight reel.
+**`auto_highlights/`** — scans a directory of footage, ranks every clip by visual and motion quality, and cuts a highlight reel.
 
 Combines two scoring signals:
 
@@ -45,7 +45,7 @@ Combines two scoring signals:
 
 The combined score ranks every clip and identifies the best moments within each one. The tool then cuts a highlight reel automatically — either as individual segments for iMovie or as a single concatenated file.
 
-→ [Full documentation](clip_analyser/README.md)
+→ [Full documentation](auto_highlights/README.md)
 
 ---
 

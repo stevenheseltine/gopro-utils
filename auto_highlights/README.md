@@ -83,7 +83,7 @@ echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.zshrc
 ### Basic — analyse a directory
 
 ```bash
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/
 ```
 
 Every run automatically produces three outputs in a `Highlights/` subdirectory inside the input directory:
@@ -110,13 +110,13 @@ Rank Clip                                  Duration   Score  Top moments
 ### Show only the top N clips
 
 ```bash
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ --top 5
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ --top 5
 ```
 
 ### Copy top clips to an export folder
 
 ```bash
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ --top 3 --copy-to ~/Movies/Best/
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ --top 3 --copy-to ~/Movies/Best/
 ```
 
 Copies the original (unmodified) source files.
@@ -127,7 +127,7 @@ After the first run, `Highlights/report.json` contains all the scoring data. Use
 
 ```bash
 # Tighten the threshold and add a crossfade
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ \
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ \
   --from-report ~/Movies/GoPro/Highlights/report.json \
   --min-score 7.5 \
   --transition fade
@@ -138,13 +138,13 @@ python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ \
 Pass `--segments` to export each highlight moment as its own file, in addition to the combined reel:
 
 ```bash
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ --segments
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ --segments
 ```
 
 Segment files appear in `Highlights/` alongside the combined reel. Override the location with `--segments-dir`:
 
 ```bash
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ \
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ \
   --segments --segments-dir ~/Movies/GoPro_highlights/
 ```
 
@@ -156,15 +156,15 @@ The files are lossless stream copies of the original footage.
 
 ```bash
 # Raise the threshold — only the most visually impressive moments
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ \
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ \
   --min-score 7.5
 
 # Wider windows — more context around each moment
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ \
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ \
   --highlight-window 8
 
 # Limit to the best 10 clips before selecting highlights
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ \
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ \
   --top 10
 ```
 
@@ -183,14 +183,14 @@ Two windows less than 1 second apart are always merged into one segment.
 Hard cuts (the default) are lossless stream copies. Crossfades re-encode using the Mac hardware H.264 encoder:
 
 ```bash
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ \
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ \
   --transition fade --transition-duration 0.5
 ```
 
 ### Overriding default output locations
 
 ```bash
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ \
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ \
   --output ~/Movies/GoPro/my_report.json \
   --edit-output ~/Movies/GoPro/my_edit.mp4
 ```
@@ -198,7 +198,7 @@ python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ \
 ### Motion-only mode (no API cost)
 
 ```bash
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ --no-vision
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ --no-vision
 ```
 
 Skips the vision API entirely. Clips are ranked by motion score alone — useful for a quick first pass or testing without spending API credits.
@@ -208,7 +208,7 @@ Note: highlight selection in this mode is unreliable because all frame scores ar
 ### Verbose output
 
 ```bash
-python3 ~/Dev/gopro-utils/clip_analyser/analyse_clips.py ~/Movies/GoPro/ -v
+python3 ~/Dev/gopro-utils/auto_highlights/auto_highlights.py ~/Movies/GoPro/ -v
 ```
 
 Shows per-clip debug detail: GPMF parse results, frame extraction progress, API call counts.
@@ -216,7 +216,7 @@ Shows per-clip debug detail: GPMF parse results, frame extraction progress, API 
 ### All options
 
 ```
-usage: analyse_clips.py [-h] [--top N] [--chronological] [--copy-to DIR]
+usage: auto_highlights.py [-h] [--top N] [--chronological] [--copy-to DIR]
                         [--no-vision] [--api-key API_KEY] [--output FILE]
                         [--from-report FILE] [--edit-output FILE]
                         [--segments] [--segments-dir DIR]
@@ -308,7 +308,7 @@ If neither the embedded stream nor a sidecar is found (e.g. footage stabilised e
 
 ## Configuration
 
-All tuning constants are at the top of `analyse_clips.py`:
+All tuning constants are at the top of `auto_highlights.py`:
 
 | Variable | Default | Description |
 |---|---|---|

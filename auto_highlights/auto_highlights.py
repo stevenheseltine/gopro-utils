@@ -6,12 +6,12 @@ Combines GPMF motion data (gyro/accelerometer) with Claude vision scoring to ran
 clips and surface the best moments within each one.
 
 Usage:
-  python3 analyse_clips.py ~/Movies/Footage/
-  python3 analyse_clips.py ~/Movies/Footage/ --top 5 --copy-to ~/Movies/Best/
-  python3 analyse_clips.py ~/Movies/Footage/ --no-vision      # motion analysis only
-  python3 analyse_clips.py ~/Movies/Footage/ --output report.json
-  python3 analyse_clips.py ~/Movies/Footage/ --edit-output highlight.mp4
-  python3 analyse_clips.py ~/Movies/Footage/ --edit-output highlight.mp4 --min-score 7.0
+  python3 auto_highlights.py ~/Movies/Footage/
+  python3 auto_highlights.py ~/Movies/Footage/ --top 5 --copy-to ~/Movies/Best/
+  python3 auto_highlights.py ~/Movies/Footage/ --no-vision      # motion analysis only
+  python3 auto_highlights.py ~/Movies/Footage/ --output report.json
+  python3 auto_highlights.py ~/Movies/Footage/ --edit-output highlight.mp4
+  python3 auto_highlights.py ~/Movies/Footage/ --edit-output highlight.mp4 --min-score 7.0
 """
 
 import argparse
