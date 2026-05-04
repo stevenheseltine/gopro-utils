@@ -1207,7 +1207,7 @@ def main() -> None:
     if args.prompt_file:
         logging.info(f"Using custom prompt: {args.prompt_file}")
 
-    run_dir = DEFAULT_OUTPUT_BASE / datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    run_dir = DEFAULT_OUTPUT_BASE / datetime.now().strftime("%Y-%m-%d")
 
     client: anthropic.Anthropic | None = None
 
