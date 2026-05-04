@@ -365,7 +365,7 @@ Either way, the system prompt cache still applies across all batches in a single
 ```json
 [
   {
-    "clip": "/Users/steven/Movies/GoPro/GH010042.MP4",
+    "clip": "~/Movies/GoPro/GH010042.MP4",
     "duration_seconds": 4354.2,
     "composite_score": 7.83,
     "vision_score": 8.41,

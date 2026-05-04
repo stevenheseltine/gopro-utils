@@ -73,7 +73,7 @@ This installs GyroFlow to `/Applications/Gyroflow.app`.
 ### 4. Register the LaunchAgent
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.steven.stabiliser.plist
+launchctl load ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
 ```
 
 The watcher will start immediately and on every login from this point.
@@ -99,7 +99,7 @@ The watcher is registered as a LaunchAgent — macOS's built-in mechanism for ru
 The plist file lives at:
 
 ```
-~/Library/LaunchAgents/com.steven.stabiliser.plist
+~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
 ```
 
 It tells launchd three things: what to run, to start it at login (`RunAtLoad`), and to keep it alive if it exits (`KeepAlive`). stdout and stderr are written to the Logs directory rather than disappearing into the void.
@@ -109,8 +109,8 @@ It tells launchd three things: what to run, to start it at login (`RunAtLoad`), 
 If you move the script or change the plist, unload first, then reload:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.steven.stabiliser.plist
-launchctl load ~/Library/LaunchAgents/com.steven.stabiliser.plist
+launchctl unload ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
+launchctl load ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
 ```
 
 ### Day-to-day commands
@@ -120,10 +120,10 @@ launchctl load ~/Library/LaunchAgents/com.steven.stabiliser.plist
 launchctl list | grep stabiliser
 
 # Stop the watcher
-launchctl unload ~/Library/LaunchAgents/com.steven.stabiliser.plist
+launchctl unload ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
 
 # Start the watcher
-launchctl load ~/Library/LaunchAgents/com.steven.stabiliser.plist
+launchctl load ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
 
 # Watch logs live
 tail -f ~/Movies/GoPro-Utils/Stabiliser/Logs/launchd.log
@@ -137,7 +137,7 @@ tail -f ~/Movies/GoPro-Utils/Stabiliser/Logs/launchd.error.log
 `launchctl list | grep stabiliser` returns three columns:
 
 ```
-30184   0   com.steven.stabiliser
+30184   0   com.$(whoami).stabiliser
 ```
 
 | Column | Meaning |
@@ -152,8 +152,8 @@ tail -f ~/Movies/GoPro-Utils/Stabiliser/Logs/launchd.error.log
 To stop it running at login entirely:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.steven.stabiliser.plist
-rm ~/Library/LaunchAgents/com.steven.stabiliser.plist
+launchctl unload ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
+rm ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
 ```
 
 ## Configuration
