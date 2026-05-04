@@ -58,6 +58,6 @@ The combined score ranks every clip and identifies the best moments within each 
 - ffmpeg 8.0+
 - [GyroFlow](https://gyroflow.xyz/) (Stabiliser only)
 - An [Anthropic API key](https://console.anthropic.com/) (Highlights vision scoring only)
-- Python 3.12 + torch + transformers (Highlights `--music` only; see [installation](highlights/README.md#installing-the-soundtrack-dependencies))
+- A [Beatoven.ai API key](https://www.beatoven.ai/) (Highlights `--music` only)
 
 See each tool's README for installation instructions.

@@ -9,7 +9,7 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 3. **Frame sampling** — selects up to 24 frames per clip on a regular time grid, biased toward seconds where the motion profile peaks (so fast sections get denser coverage than slow sections)
 4. **Vision scoring** — sends each batch of frames to `claude-opus-4-7` with a cycling-specialist prompt; Claude scores visual appeal, action level, and composition for each frame. The system prompt is cached across batches to keep API costs low
 5. **Composite score** — combines the vision score (65%) and motion score (35%) into a single rank for each clip
-6. **Music prompt** — Claude Haiku synthesises the top frame descriptions into a MusicGen prompt and stores it in `report.json` for later use with `--music`
+6. **Music prompt** — Claude Haiku synthesises the top frame descriptions into a Beatoven.ai music prompt and stores it in `report.json` for later use with `--music`
 7. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel (capped at 2 min 30, best-scoring moments first) to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD-HH-MM-SS/`, and optionally exports all qualifying moments as individual segment files or mixes in an AI soundtrack
 
 ## Requirements
@@ -19,7 +19,7 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 - Python 3.13+
 - ffmpeg 8.0+
 - An [Anthropic API key](https://console.anthropic.com/) (only needed for vision scoring; see `--no-vision` to skip)
-- Python 3.12 + torch + transformers (only needed for `--music`; see [Soundtrack](#soundtrack))
+- A [Beatoven.ai API key](https://www.beatoven.ai/) (only needed for `--music`)
 
 ## Installation
 
@@ -255,9 +255,9 @@ options:
   --max-reel-duration SECS  Cap reel length; best-scoring moments picked first (default: 150)
   --transition STYLE        Transition between clips: none, fade, fadeblack (default: none)
   --transition-duration S   Length of each transition in seconds (default: 0.5)
-  --music                   Generate and mix an AI soundtrack using MusicGen
+  --music                   Generate and mix an AI soundtrack via Beatoven.ai
   --music-prompt TEXT       Music generation prompt (default: Claude-generated, stored in report.json)
-  --music-model SIZE        MusicGen model: small (~2.2GB), medium (~8GB), large (~12GB)
+  --music-api-key KEY       Beatoven.ai API key (default: BEATOVEN_API_KEY env var)
   --music-volume LEVEL      Music level in the mix, 0.0–1.0 (default: 0.8)
   --verbose, -v             Show debug-level detail
 ```
@@ -427,7 +427,7 @@ Either way, the system prompt cache still applies across all batches in a single
 
 ## Soundtrack
 
-Pass `--music` to generate an AI soundtrack and mix it onto the highlight reel. Uses [MusicGen](https://audiocraft.metademolab.com/) (Meta) running locally — no cloud, no subscription.
+Pass `--music` to generate an AI soundtrack and mix it onto the highlight reel. Uses [Beatoven.ai](https://www.beatoven.ai/) — an API that generates music to an exact duration from a text prompt.
 
 ```bash
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ --music
@@ -445,28 +445,20 @@ Output: `highlights_with_music.mp4` alongside the existing `highlights.mp4`. The
 | Flag | Default | Effect |
 |---|---|---|
 | `--music` | off | Enable soundtrack generation |
-| `--music-prompt TEXT` | auto | Override the derived mood prompt |
-| `--music-model` | `small` | `small` (~2.2GB), `medium` (~8GB), `large` (~12GB) |
+| `--music-prompt TEXT` | auto | Override the Claude-generated mood prompt |
+| `--music-api-key KEY` | env | Beatoven.ai API key (default: `BEATOVEN_API_KEY` env var) |
 | `--music-volume` | `0.8` | Music level in the mix (original audio ducked to 0.15) |
 
-Models are downloaded on first use to `~/.cache/huggingface/hub/`. Generation time on CPU: roughly 1–2× realtime for `small` (a 2 min 30 reel takes ~3–5 min to generate).
+### Setting up Beatoven.ai
 
-### Installing the soundtrack dependencies
-
-MusicGen requires PyTorch, which on Intel Macs currently only supports Python 3.12 (not 3.13). The main highlights script runs on Python 3.13 as normal — the music generation step spawns a Python 3.12 subprocess automatically.
+1. Create an account at [beatoven.ai](https://www.beatoven.ai/) and obtain an API key from your account settings.
+2. Set the key as an environment variable:
 
 ```bash
-# Install Python 3.12
-brew install python@3.12
-
-# Install torch and transformers under Python 3.12
-pip3.12 install torch torchaudio --break-system-packages
-pip3.12 install "transformers>=4.31,<5" scipy --break-system-packages
+export BEATOVEN_API_KEY="your-key-here"
 ```
 
-Once installed, `--music` works without any other configuration. The script detects Python 3.12 automatically.
-
-> **Apple Silicon Macs:** PyTorch supports Python 3.13 on Apple Silicon — you can install torch directly under Python 3.13 and skip the Python 3.12 step. The script will use whichever Python has torch available.
+Add that to `~/.zshrc` to make it permanent. No additional Python packages are required — the soundtrack feature uses only the standard library.
 
 ## Limitations
 

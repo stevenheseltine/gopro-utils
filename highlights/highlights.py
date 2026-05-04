@@ -67,12 +67,13 @@ MAX_REEL_DURATION       = 150.0 # cap the assembled reel at this many seconds (2
 # Seconds kept clear at each end of a clip when selecting sample timestamps
 CLIP_EDGE_MARGIN = 3.0
 
-# Soundtrack generation (MusicGen)
-MUSIC_FILENAME           = "soundtrack.wav"
-MUSIC_REEL_FILENAME      = "highlights_with_music.mp4"
-DEFAULT_MUSIC_MODEL      = "small"
-DEFAULT_MUSIC_VOLUME     = 0.8    # music level in mix
-DEFAULT_ORIG_AUDIO_VOLUME = 0.15  # original clip audio level in mix
+# Soundtrack generation (Beatoven.ai)
+MUSIC_FILENAME            = "soundtrack.wav"
+MUSIC_REEL_FILENAME       = "highlights_with_music.mp4"
+DEFAULT_MUSIC_VOLUME      = 0.8    # music level in mix
+DEFAULT_ORIG_AUDIO_VOLUME = 0.15   # original clip audio level in mix
+BEATOVEN_API_BASE         = "https://public-api.beatoven.ai"
+BEATOVEN_POLL_INTERVAL    = 10     # seconds between status checks
 
 # ---------------------------------------------------------------------------
 
@@ -992,7 +993,7 @@ def _run_analysis(
 # Soundtrack
 # ---------------------------------------------------------------------------
 
-_MUSIC_MODEL_SIZES = {"small": "~2.2 GB", "medium": "~8 GB", "large": "~12 GB"}
+MUSIC_PROMPT_MODEL = "claude-haiku-4-5-20251001"
 
 
 def _generate_music_prompt_via_claude(
@@ -1019,7 +1020,7 @@ def _generate_music_prompt_via_claude(
             "role": "user",
             "content": (
                 "Based on these descriptions of the best moments in a GoPro highlight reel, "
-                "write a single music generation prompt (under 30 words) for MusicGen. "
+                "write a single music generation prompt (under 30 words) for Beatoven.ai. "
                 "Output only the prompt, nothing else.\n\n"
                 f"{descriptions}"
             ),
@@ -1038,46 +1039,57 @@ def _derive_music_prompt(results: list[ClipResult]) -> str:
     return "ambient atmospheric music, calm, peaceful, scenic outdoor"
 
 
-MUSIC_PROMPT_MODEL = "claude-haiku-4-5-20251001"
-
-_MUSIC_GEN_HELPER = Path(__file__).parent / "_music_gen.py"
-_MUSIC_PYTHON_CANDIDATES = ["python3.12", "python3.11", "python3"]
-
-
-def _find_music_python() -> str | None:
-    for py in _MUSIC_PYTHON_CANDIDATES:
-        result = subprocess.run(
-            [py, "-c", "import torch; from transformers import MusicgenForConditionalGeneration"],
-            capture_output=True,
-        )
-        if result.returncode == 0:
-            return py
-    return None
-
-
 def _generate_soundtrack(
     duration: float,
     prompt: str,
-    model_size: str,
+    api_key: str,
     output_path: Path,
 ) -> None:
-    py = _find_music_python()
-    if py is None:
-        logging.error(
-            "No Python with torch + transformers found. "
-            "See highlights/README.md — Soundtrack section for install instructions."
-        )
-        sys.exit(1)
+    import urllib.request
+    import urllib.error
 
-    size_label = _MUSIC_MODEL_SIZES.get(model_size, "?")
-    logging.info(f"MusicGen-{model_size} ({size_label}) via {py}")
+    duration_secs = int(duration)
+    full_prompt = f"{prompt}, {duration_secs} seconds"
 
-    result = subprocess.run(
-        [py, str(_MUSIC_GEN_HELPER), str(duration), prompt, model_size, str(output_path)],
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    # 1. Submit composition request
+    body = json.dumps({"prompt": {"text": full_prompt}, "format": "wav"}).encode()
+    req = urllib.request.Request(
+        f"{BEATOVEN_API_BASE}/api/v1/tracks/compose",
+        data=body, headers=headers, method="POST",
     )
-    if result.returncode != 0:
-        logging.error("Music generation failed")
+    try:
+        with urllib.request.urlopen(req) as resp:
+            task_id = json.loads(resp.read())["task_id"]
+    except urllib.error.HTTPError as exc:
+        logging.error(f"Beatoven compose request failed: {exc.code} {exc.reason}")
         sys.exit(1)
+
+    logging.info(f"Beatoven task {task_id} — waiting for composition...")
+
+    # 2. Poll until composed
+    import time
+    status_url = f"{BEATOVEN_API_BASE}/api/v1/tasks/{task_id}"
+    while True:
+        time.sleep(BEATOVEN_POLL_INTERVAL)
+        req = urllib.request.Request(status_url, headers={"Authorization": f"Bearer {api_key}"})
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read())
+        status = data.get("status")
+        if status == "composed":
+            track_url = data["meta"]["track_url"]
+            break
+        if status not in ("composing", "running", "started"):
+            logging.error(f"Beatoven composition failed with status: {status}")
+            sys.exit(1)
+
+    # 3. Download wav
+    logging.info("Downloading soundtrack...")
+    urllib.request.urlretrieve(track_url, output_path)
     logging.info(f"Soundtrack saved: {output_path.name}")
 
 
@@ -1154,14 +1166,13 @@ def main() -> None:
                         help="Transition between clips: none (hard cut, lossless), fade, fadeblack (default: none)")
     parser.add_argument("--transition-duration", type=float, default=0.5, metavar="SECS",
                         help="Duration of each transition in seconds (default: 0.5)")
-    music = parser.add_argument_group("soundtrack (requires audiocraft)")
+    music = parser.add_argument_group("soundtrack (requires Beatoven.ai API key)")
     music.add_argument("--music", action="store_true",
-                       help="Generate and mix an AI soundtrack using MusicGen")
+                       help="Generate and mix an AI soundtrack via Beatoven.ai")
     music.add_argument("--music-prompt", type=str, default=None, metavar="TEXT",
                        help="Music generation prompt (default: Claude-generated from frame descriptions, stored in report.json)")
-    music.add_argument("--music-model", choices=["small", "medium", "large"],
-                       default=DEFAULT_MUSIC_MODEL,
-                       help="MusicGen model size: small (~2.2GB), medium (~8GB), large (~12GB) (default: small)")
+    music.add_argument("--music-api-key", type=str, default=None, metavar="KEY",
+                       help="Beatoven.ai API key (default: BEATOVEN_API_KEY env var)")
     music.add_argument("--music-volume", type=float, default=DEFAULT_MUSIC_VOLUME, metavar="LEVEL",
                        help=f"Music level in the mix, 0.0–1.0 (default: {DEFAULT_MUSIC_VOLUME})")
     parser.add_argument("--verbose", "-v", action="store_true")
@@ -1263,6 +1274,13 @@ def main() -> None:
             if reel_info is None:
                 logging.warning("Could not probe reel duration — skipping music generation")
             else:
+                beatoven_key = args.music_api_key or os.environ.get("BEATOVEN_API_KEY")
+                if not beatoven_key:
+                    logging.error(
+                        "No Beatoven API key found. "
+                        "Set BEATOVEN_API_KEY or pass --music-api-key."
+                    )
+                    sys.exit(1)
                 music_prompt = (
                     args.music_prompt
                     or stored_music_prompt
@@ -1271,7 +1289,7 @@ def main() -> None:
                 logging.info(f"Music prompt: {music_prompt!r}")
                 soundtrack_path = output_dir / MUSIC_FILENAME
                 _generate_soundtrack(
-                    reel_info.duration, music_prompt, args.music_model, soundtrack_path
+                    reel_info.duration, music_prompt, beatoven_key, soundtrack_path
                 )
                 _mix_soundtrack(
                     reel_path, soundtrack_path,
