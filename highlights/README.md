@@ -272,9 +272,8 @@ If no GPMF data is found (e.g. the footage was transcoded and the metadata strea
 
 | Clip length | Sampling interval | Max frames |
 |---|---|---|
-| Under 2 min | Every 10s | 24 |
-| 2–10 min | Every 20s | 24 |
-| Over 10 min | Every 30s | 24 |
+| Under 10 min | Every 10s | 24 |
+| Over 10 min | Every 20s | 24 |
 
 Seconds where the GPMF motion profile exceeds the 80th percentile are also sampled, up to the 24-frame cap. This means a 1-hour ride produces roughly the same number of API calls as a 5-minute clip, with coverage biased toward the most dynamic sections.
 

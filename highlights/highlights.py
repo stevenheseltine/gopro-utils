@@ -319,12 +319,10 @@ def select_timestamps(clip: ClipInfo, motion: np.ndarray | None) -> list[float]:
     if duration <= margin * 2 + 5:
         return [duration / 2]
 
-    if duration < 120:
+    if duration < 600:
         interval = 10.0
-    elif duration < 600:
-        interval = 20.0
     else:
-        interval = 30.0
+        interval = 20.0
 
     # Regular grid
     timestamps: list[float] = []
