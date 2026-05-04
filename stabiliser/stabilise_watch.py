@@ -4,8 +4,9 @@ Watches a staging directory for GoPro footage, stabilizes each clip
 via GyroFlow, and moves the result to a date-bucketed processed directory.
 
 Usage:
-  python3 stabilize_watch.py
-  python3 stabilize_watch.py --once   # process existing files and exit
+  python3 stabilise_watch.py
+  python3 stabilise_watch.py --once                        # process existing files and exit
+  python3 stabilise_watch.py --base-dir ~/Movies/MyRides   # custom base directory
 """
 
 import argparse
@@ -18,26 +19,23 @@ import sys
 import time
 from datetime import date, datetime
 from pathlib import Path
+from typing import NamedTuple
 
 # ---------------------------------------------------------------------------
-# Config — edit these paths to match your setup
+# Config — edit these to match your setup
 # ---------------------------------------------------------------------------
 GYROFLOW = "/Applications/Gyroflow.app/Contents/MacOS/gyroflow"
 FFPROBE  = "/usr/local/bin/ffprobe"
 FFMPEG   = "/usr/local/bin/ffmpeg"
 
-BASE_DIR      = Path.home() / "Movies" / "Stabiliser"
-STAGING_DIR   = BASE_DIR / "Staging"
-PROCESSED_DIR = BASE_DIR / "Processed"
-FAILED_DIR    = BASE_DIR / "Failed"
-LOG_DIR       = BASE_DIR / "Logs"
+DEFAULT_BASE_DIR = Path.home() / "Movies" / "GoPro-Utils" / "Stabiliser"
 
 # Suffix appended to the stabilized output filename
 OUTPUT_SUFFIX = "_stabilized"
 
 # Path to a .gyroflow preset file, or None to let GyroFlow use its defaults.
 # Create one by opening a clip in the GUI, tuning settings, then File > Save preset.
-PRESET: Path | None = None  # e.g. BASE_DIR / "my_preset.gyroflow"
+PRESET: Path | None = None  # e.g. Path.home() / "Movies" / "my_preset.gyroflow"
 
 # GyroFlow output parameters — override codec/bitrate here if needed.
 # See: gyroflow --help for the full JSON schema.
@@ -53,9 +51,25 @@ SCAN_INTERVAL       = 5   # seconds between directory scans
 # ---------------------------------------------------------------------------
 
 
-def setup_logging() -> None:
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    log_file = LOG_DIR / f"stabilize_{datetime.now().strftime('%Y%m%d')}.log"
+class Dirs(NamedTuple):
+    staging: Path
+    processed: Path
+    failed: Path
+    logs: Path
+
+
+def make_dirs(base: Path) -> Dirs:
+    return Dirs(
+        staging=base / "Staging",
+        processed=base / "Processed",
+        failed=base / "Failed",
+        logs=base / "Logs",
+    )
+
+
+def setup_logging(log_dir: Path) -> None:
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"stabilise_{datetime.now().strftime('%Y%m%d')}.log"
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-8s  %(message)s",
@@ -66,8 +80,8 @@ def setup_logging() -> None:
     )
 
 
-def ensure_dirs() -> None:
-    for d in (STAGING_DIR, PROCESSED_DIR, FAILED_DIR, LOG_DIR):
+def ensure_dirs(dirs: Dirs) -> None:
+    for d in dirs:
         d.mkdir(parents=True, exist_ok=True)
 
 
@@ -194,10 +208,10 @@ def _run_gyroflow(src: Path) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
 
 
-def _move_output(expected_output: Path, src: Path) -> Path | None:
-    """Move stabilised output to date-bucketed processed dir. Returns destination or None on failure."""
+def _move_output(expected_output: Path, src: Path, processed_dir: Path) -> Path:
+    """Move stabilised output to date-bucketed processed dir. Returns destination."""
     capture_date = get_capture_date(src)
-    date_dir = PROCESSED_DIR / capture_date.isoformat()
+    date_dir = processed_dir / capture_date.isoformat()
     date_dir.mkdir(parents=True, exist_ok=True)
     dest = date_dir / expected_output.name
     shutil.move(str(expected_output), dest)
@@ -205,7 +219,7 @@ def _move_output(expected_output: Path, src: Path) -> Path | None:
     return dest
 
 
-def process_file(src: Path) -> None:
+def process_file(src: Path, dirs: Dirs) -> None:
     logging.info(f"[START]  {src.name}")
     expected_output = src.with_name(src.stem + OUTPUT_SUFFIX + src.suffix)
 
@@ -213,11 +227,11 @@ def process_file(src: Path) -> None:
         result = _run_gyroflow(src)
     except subprocess.TimeoutExpired:
         logging.error(f"[TIMEOUT] {src.name} — moving to failed/")
-        shutil.move(str(src), FAILED_DIR / src.name)
+        shutil.move(str(src), dirs.failed / src.name)
         return
     except Exception as exc:
         logging.error(f"[ERROR]  {src.name} — {exc}")
-        shutil.move(str(src), FAILED_DIR / src.name)
+        shutil.move(str(src), dirs.failed / src.name)
         return
 
     if result.stdout:
@@ -232,11 +246,10 @@ def process_file(src: Path) -> None:
             f"[FAIL]   {src.name} — exit code {result.returncode}, "
             f"output {'missing' if not expected_output.exists() else 'present'}"
         )
-        shutil.move(str(src), FAILED_DIR / src.name)
+        shutil.move(str(src), dirs.failed / src.name)
         return
 
-    dest = _move_output(expected_output, src)
-
+    dest = _move_output(expected_output, src, dirs.processed)
     extract_gpmf_sidecar(src, dest.parent, dest.stem)
 
     try:
@@ -245,9 +258,9 @@ def process_file(src: Path) -> None:
         logging.warning(f"[WARN]   Could not remove staging file {src.name}: {exc}")
 
 
-def scan_once(already_seen: set[Path]) -> set[Path]:
+def scan_once(already_seen: set[Path], dirs: Dirs) -> set[Path]:
     newly_seen: set[Path] = set()
-    for path in sorted(STAGING_DIR.iterdir()):
+    for path in sorted(dirs.staging.iterdir()):
         if path.suffix.lower() not in VIDEO_EXTENSIONS:
             continue
         if path in already_seen:
@@ -255,7 +268,7 @@ def scan_once(already_seen: set[Path]) -> set[Path]:
         newly_seen.add(path)
         logging.info(f"[DETECT] {path.name} — waiting for copy to complete …")
         if wait_until_stable(path):
-            process_file(path)
+            process_file(path, dirs)
         else:
             logging.warning(f"[GONE]   {path.name} disappeared before processing")
             newly_seen.discard(path)
@@ -263,7 +276,15 @@ def scan_once(already_seen: set[Path]) -> set[Path]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--base-dir",
+        type=Path,
+        default=DEFAULT_BASE_DIR,
+        metavar="DIR",
+        help=f"Base directory for all subdirectories (default: {DEFAULT_BASE_DIR})",
+    )
     parser.add_argument(
         "--once",
         action="store_true",
@@ -271,27 +292,30 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    setup_logging()
-    ensure_dirs()
+    dirs = make_dirs(args.base_dir)
+
+    setup_logging(dirs.logs)
+    ensure_dirs(dirs)
 
     logging.info("=" * 60)
     logging.info(f"Gyroflow : {GYROFLOW}")
-    logging.info(f"Staging  : {STAGING_DIR}")
-    logging.info(f"Processed: {PROCESSED_DIR}")
-    logging.info(f"Failed   : {FAILED_DIR}")
+    logging.info(f"Base     : {args.base_dir}")
+    logging.info(f"Staging  : {dirs.staging}")
+    logging.info(f"Processed: {dirs.processed}")
+    logging.info(f"Failed   : {dirs.failed}")
     logging.info(f"Preset   : {PRESET or 'GyroFlow defaults'}")
     logging.info("=" * 60)
 
     if args.once:
         logging.info("--once mode: processing existing files and exiting")
-        scan_once(set())
+        scan_once(set(), dirs)
         return
 
-    logging.info(f"Watching {STAGING_DIR} (Ctrl-C to stop) …")
+    logging.info(f"Watching {dirs.staging} (Ctrl-C to stop) …")
     seen: set[Path] = set()
     try:
         while True:
-            seen |= scan_once(seen)
+            seen |= scan_once(seen, dirs)
             time.sleep(SCAN_INTERVAL)
     except KeyboardInterrupt:
         logging.info("Stopped.")

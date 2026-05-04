@@ -4,15 +4,15 @@ Watches a staging directory for GoPro footage, stabilises each clip via GyroFlow
 
 ## How it works
 
-1. Copy footage from your SD card into `~/Movies/Stabiliser/Staging/`
+1. Copy footage from your SD card into `~/Movies/GoPro-Utils/Stabiliser/Staging/`
 2. The watcher detects the new files, waits for the copy to finish, then passes each clip to GyroFlow
-3. Stabilised output is saved to `~/Movies/Stabiliser/Processed/YYYY-MM-DD/` using the date embedded in the footage
+3. Stabilised output is saved to `~/Movies/GoPro-Utils/Stabiliser/Processed/YYYY-MM-DD/` using the date embedded in the footage
 4. The original is deleted from Staging on success, or moved to `Failed/` if something goes wrong
 
 ## Directory structure
 
 ```
-~/Movies/Stabiliser/
+~/Movies/GoPro-Utils/Stabiliser/
   Staging/          ← drop footage here
   Processed/
     2026-05-02/     ← date from the clip's metadata
@@ -126,10 +126,10 @@ launchctl unload ~/Library/LaunchAgents/com.steven.stabiliser.plist
 launchctl load ~/Library/LaunchAgents/com.steven.stabiliser.plist
 
 # Watch logs live
-tail -f ~/Movies/Stabiliser/Logs/launchd.log
+tail -f ~/Movies/GoPro-Utils/Stabiliser/Logs/launchd.log
 
 # Watch error logs live
-tail -f ~/Movies/Stabiliser/Logs/launchd.error.log
+tail -f ~/Movies/GoPro-Utils/Stabiliser/Logs/launchd.error.log
 ```
 
 ### Reading the status output
@@ -173,7 +173,7 @@ All config is at the top of `stabilise_watch.py`:
 Open a clip in GyroFlow, tune the stabilisation settings to your liking, then go to **File > Save preset**. Save it to `~/Movies/Stabiliser/` and point the script at it:
 
 ```python
-PRESET = Path.home() / "Movies" / "Stabiliser" / "my_preset.gyroflow"
+PRESET = Path.home() / "Movies" / "GoPro-Utils" / "Stabiliser" / "my_preset.gyroflow"
 ```
 
 ### Changing codec or bitrate
