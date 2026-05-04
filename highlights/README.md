@@ -167,7 +167,7 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
 | Parameter | Default | Effect |
 |---|---|---|
 | `--min-score` | `6.5` | Minimum combined frame score (1–10) to include |
-| `--max-per-clip` | auto | Override max highlight moments per clip (default: ~1 per 75 seconds, capped at 5) |
+| `--max-per-clip` | auto | Override max highlight moments per clip (default: ~1 per 45 seconds, capped at 5) |
 | `--highlight-window` | `5` | Seconds either side of each qualifying moment (10s clips) |
 | `--max-reel-duration` | `150` | Cap the reel at this many seconds — best-scoring moments are picked first |
 | `--transition` | `none` | Transition style: `none` (hard cut, lossless), `fade` (crossfade), `fadeblack` |
@@ -240,7 +240,7 @@ options:
   --from-report FILE        Skip analysis; re-run edit from an existing JSON report
   --segments                Also export each highlight moment as a separate file
   --min-score N             Minimum frame score to include in edit (default: 6.5)
-  --max-per-clip N          Maximum highlight moments per clip (default: auto, ~1 per 75 sec)
+  --max-per-clip N          Maximum highlight moments per clip (default: auto, ~1 per 45 sec)
   --highlight-window SECS   Seconds either side of each highlight moment (default: 5)
   --max-reel-duration SECS  Cap reel length; best-scoring moments picked first (default: 150)
   --transition STYLE        Transition between clips: none, fade, fadeblack (default: none)
@@ -327,7 +327,7 @@ All tuning constants are at the top of `highlights.py`:
 | `HIGHLIGHT_MERGE_GAP` | `1.0` | Merge highlight windows within this many seconds of each other |
 | `MIN_HIGHLIGHT_SCORE` | `6.5` | Default minimum frame score for highlight selection |
 | `MAX_REEL_DURATION` | `150.0` | Reel cap in seconds; best-scoring moments fill it first |
-| `_auto_moments_cap()` | — | Controls the per-clip moment cap formula (~1 per 75 sec, cap 5); edit the function body to change the scaling, or pass `--max-per-clip` to override at runtime |
+| `_auto_moments_cap()` | — | Controls the per-clip moment cap formula (~1 per 45 sec, cap 5); edit the function body to change the scaling, or pass `--max-per-clip` to override at runtime |
 
 ### Tuning the scoring prompt
 

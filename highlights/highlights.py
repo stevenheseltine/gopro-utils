@@ -622,8 +622,8 @@ def load_results_from_json(report_path: Path) -> list[ClipResult]:
 # ---------------------------------------------------------------------------
 
 def _auto_moments_cap(duration_seconds: float) -> int:
-    """Scale max highlight moments by clip duration: ~1 per 75 seconds, capped at 5."""
-    return max(1, min(5, int(duration_seconds / 75) + 1))
+    """Scale max highlight moments by clip duration: ~1 per 45 seconds, capped at 5."""
+    return max(1, min(5, int(duration_seconds / 45) + 1))
 
 
 def select_edit_segments(
