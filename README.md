@@ -8,7 +8,8 @@ The **GoPro Hero 4K (2024)** records great footage but the intended workflow has
 
 - **No onboard stabilisation.** Unlike the Hero 12/13 with HyperSmooth, the Hero 4K has no in-camera stabilisation. Footage needs post-processing before it's usable.
 - **GoPro subscription dependency.** Quik's automatic highlight generation, cloud backup, and desktop editing features all require a paid subscription (~$50/year). The highlight algorithm runs on GoPro's servers, not yours.
-- **Cloud latency.** Footage has to be uploaded before Quik can process it. For longer rides this means a significant wait before you can review anything.
+- **Cloud latency.** Both stabilisation and highlight generation depend on uploading footage to GoPro's servers first. For longer rides this means a significant wait before you can review anything — and the upload itself consumes bandwidth and time before any processing even starts.
+- **Phone storage.** The alternative to cloud upload is connecting the camera to your phone over Wi-Fi and importing directly into the Quik app. This avoids the upload wait but trades it for a different problem: GoPro footage is large, and importing to the phone quickly eats all available storage. Keeping footage off the phone and processing it directly on a Mac sidesteps this entirely.
 - **No tunability.** Quik's highlight selection is a black box. You can't adjust what it considers interesting, weight it toward the moments that matter to you, or understand why it picked what it picked.
 
 These tools replace that workflow with something that runs entirely on your Mac:
