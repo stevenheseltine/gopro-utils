@@ -58,14 +58,22 @@ W_VISION = 0.65
 W_MOTION = 0.35
 
 # Edit generation
-HIGHLIGHT_HALF_WIDTH    = 4.0   # seconds either side of each qualifying moment
+HIGHLIGHT_HALF_WIDTH    = 5.0   # seconds either side of each qualifying moment
 HIGHLIGHT_MERGE_GAP     = 1.0   # merge windows within this many seconds of each other
 MIN_HIGHLIGHT_SCORE     = 6.5   # default minimum combined frame score to include
+MAX_REEL_DURATION       = 180.0 # cap the assembled reel at this many seconds (3 min)
 
 # Seconds kept clear at each end of a clip when selecting sample timestamps
 CLIP_EDGE_MARGIN = 3.0
 
 # ---------------------------------------------------------------------------
+
+
+class Segment(NamedTuple):
+    clip: "ClipInfo"
+    start: float       # seconds from clip start
+    duration: float    # seconds
+    score: float       # best combined frame score within the window
 
 
 @dataclass
@@ -665,14 +673,13 @@ def select_edit_segments(
     half_width: float,
     merge_gap: float,
     max_per_clip: int,
-) -> list[tuple[ClipInfo, float, float]]:
+) -> list[Segment]:
     """
-    For each clip, expand qualifying moments into windows, merge overlapping
-    or close windows, and return (clip, start_sec, duration_sec) in
-    chronological order.
+    Expand qualifying moments into windows, merge overlapping or adjacent windows,
+    and return all qualifying segments in chronological order.
     max_per_clip=0 uses automatic duration-based scaling.
     """
-    all_segments: list[tuple[ClipInfo, float, float]] = []
+    all_segments: list[Segment] = []
 
     for r in results:
         cap = max_per_clip if max_per_clip > 0 else _auto_moments_cap(r.clip.duration)
@@ -680,28 +687,43 @@ def select_edit_segments(
         if not qualifying:
             continue
 
-        # Build and sort windows by start time
-        windows: list[list[float]] = []
+        # Build and sort windows by start time; carry the frame score through merges
+        windows: list[list] = []  # [start, end, score]
         for f in qualifying:
             start = max(0.0, f.timestamp - half_width)
             end   = min(r.clip.duration, f.timestamp + half_width)
-            windows.append([start, end])
+            windows.append([start, end, f.combined])
         windows.sort()
 
-        # Merge overlapping or adjacent windows
-        merged: list[list[float]] = []
-        for start, end in windows:
+        merged: list[list] = []
+        for start, end, score in windows:
             if merged and start <= merged[-1][1] + merge_gap:
                 merged[-1][1] = max(merged[-1][1], end)
+                merged[-1][2] = max(merged[-1][2], score)
             else:
-                merged.append([start, end])
+                merged.append([start, end, score])
 
-        for start, end in merged:
-            all_segments.append((r.clip, start, end - start))
+        for start, end, score in merged:
+            all_segments.append(Segment(r.clip, start, end - start, score))
 
-    # Always emit in filming order (filename, then timestamp within clip)
-    all_segments.sort(key=lambda s: (s[0].path.name, s[1]))
+    all_segments.sort(key=lambda s: (s.clip.path.name, s.start))
     return all_segments
+
+
+def _cap_reel_segments(segments: list[Segment], max_duration: float) -> list[Segment]:
+    """
+    Pick the highest-scoring segments that fit within max_duration,
+    then re-sort chronologically for natural viewing order.
+    """
+    ranked = sorted(segments, key=lambda s: s.score, reverse=True)
+    selected: list[Segment] = []
+    total = 0.0
+    for seg in ranked:
+        if total + seg.duration <= max_duration:
+            selected.append(seg)
+            total += seg.duration
+    selected.sort(key=lambda s: (s.clip.path.name, s.start))
+    return selected
 
 
 def extract_segment(src: Path, start: float, duration: float, out: Path) -> bool:
@@ -849,18 +871,15 @@ def _segment_filename(seq: int, clip: ClipInfo, start: float, duration: float) -
     return f"{seq:03d}_{clip.path.stem}_{ts(start)}-{ts(start + duration)}.mp4"
 
 
-def _extract_segments(
-    segments: list[tuple[ClipInfo, float, float]],
-    tmp: Path,
-) -> list[Path]:
+def _extract_segments(segments: list[Segment], tmp: Path) -> list[Path]:
     paths = []
-    for i, (clip, start, dur) in enumerate(segments):
+    for i, seg in enumerate(segments):
         out = tmp / f"seg_{i:04d}.mp4"
         logging.info(
-            f"[EDIT]   {i+1}/{len(segments)}  {clip.path.name}  "
-            f"{_fmt_ts(start)} → {_fmt_ts(start + dur)}  ({dur:.1f}s)"
+            f"[EDIT]   {i+1}/{len(segments)}  {seg.clip.path.name}  "
+            f"{_fmt_ts(seg.start)} → {_fmt_ts(seg.start + seg.duration)}  ({seg.duration:.1f}s)"
         )
-        if extract_segment(clip.path, start, dur, out):
+        if extract_segment(seg.clip.path, seg.start, seg.duration, out):
             paths.append(out)
         else:
             logging.warning(f"[EDIT]   Skipping segment {i+1} — extraction failed")
@@ -869,12 +888,12 @@ def _extract_segments(
 
 def _save_segment_files(
     segment_paths: list[Path],
-    segments: list[tuple[ClipInfo, float, float]],
+    segments: list[Segment],
     segments_dir: Path,
 ) -> None:
     segments_dir.mkdir(parents=True, exist_ok=True)
-    for i, (tmp_path, (clip, start, dur)) in enumerate(zip(segment_paths, segments), start=1):
-        name = _segment_filename(i, clip, start, dur)
+    for i, (tmp_path, seg) in enumerate(zip(segment_paths, segments), start=1):
+        name = _segment_filename(i, seg.clip, seg.start, seg.duration)
         dest = segments_dir / name
         shutil.copy2(tmp_path, dest)
         logging.info(f"[EDIT]   Segment → {dest.name}")
@@ -908,36 +927,42 @@ def build_edit(
     max_per_clip: int,
     transition: str,
     transition_duration: float,
+    max_reel_duration: float,
 ) -> None:
-    segments = select_edit_segments(results, min_score, half_width, HIGHLIGHT_MERGE_GAP, max_per_clip)
+    all_segments = select_edit_segments(results, min_score, half_width, HIGHLIGHT_MERGE_GAP, max_per_clip)
 
-    if not segments:
+    if not all_segments:
         logging.error(
             f"[EDIT]   No segments found above score {min_score:.1f}. "
             "Try lowering --min-score, or run without --no-vision."
         )
         return
 
-    n_clips = len({s[0].path for s in segments})
-    total = sum(d for _, _, d in segments)
+    reel_segments = _cap_reel_segments(all_segments, max_reel_duration)
+    reel_total = sum(s.duration for s in reel_segments)
     mode = f"{transition} ({transition_duration}s)" if transition != "none" else "hard cut"
     logging.info(
-        f"[EDIT]   {len(segments)} segment(s) from {n_clips} clip(s) — "
-        f"~{_fmt_duration(total)}  transition: {mode}"
+        f"[EDIT]   {len(all_segments)} qualifying segment(s) — "
+        f"reel: {len(reel_segments)} segment(s), ~{_fmt_duration(reel_total)}  "
+        f"transition: {mode}"
     )
 
     with tempfile.TemporaryDirectory(prefix="highlights_edit_") as tmpdir:
         tmp = Path(tmpdir)
-        segment_paths = _extract_segments(segments, tmp)
+        all_paths = _extract_segments(all_segments, tmp)
 
-        if not segment_paths:
+        if not all_paths:
             logging.error("[EDIT]   All segment extractions failed")
             return
 
         if save_segments:
-            _save_segment_files(segment_paths, segments, output_dir)
+            _save_segment_files(all_paths, all_segments, output_dir)
 
-        _assemble_reel(segment_paths, output_dir / REEL_FILENAME, total, transition, transition_duration, tmp)
+        # Build a path lookup keyed by (clip path, start time) to map reel segments → extracted files
+        path_by_key = {(s.clip.path, s.start): p for s, p in zip(all_segments, all_paths)}
+        reel_paths = [path_by_key[(s.clip.path, s.start)] for s in reel_segments]
+
+        _assemble_reel(reel_paths, output_dir / REEL_FILENAME, reel_total, transition, transition_duration, tmp)
 
 
 # ---------------------------------------------------------------------------
@@ -1021,6 +1046,9 @@ def main() -> None:
                         help="Maximum highlight moments per clip (default: auto — ~1 per 2 min, capped at 5)")
     parser.add_argument("--highlight-window", type=float, default=HIGHLIGHT_HALF_WIDTH, metavar="SECS",
                         help=f"Seconds either side of each highlight moment (default: {HIGHLIGHT_HALF_WIDTH})")
+    parser.add_argument("--max-reel-duration", type=float, default=MAX_REEL_DURATION, metavar="SECS",
+                        help=f"Maximum reel length in seconds — best-scoring segments are picked first "
+                             f"(default: {int(MAX_REEL_DURATION)})")
     parser.add_argument("--transition", default="none",
                         choices=["none", "fade", "fadeblack"],
                         help="Transition between clips: none (hard cut, lossless), fade, fadeblack (default: none)")
@@ -1099,6 +1127,7 @@ def main() -> None:
         max_per_clip=args.max_per_clip,
         transition=args.transition,
         transition_duration=args.transition_duration,
+        max_reel_duration=args.max_reel_duration,
     )
 
 

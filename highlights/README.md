@@ -167,11 +167,14 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
 |---|---|---|
 | `--min-score` | `6.5` | Minimum combined frame score (1–10) to include |
 | `--max-per-clip` | auto | Override max highlight moments per clip (default: ~1 per 75 seconds, capped at 5) |
-| `--highlight-window` | `4` | Seconds either side of each qualifying moment |
+| `--highlight-window` | `5` | Seconds either side of each qualifying moment (10s clips) |
+| `--max-reel-duration` | `180` | Cap the reel at this many seconds — best-scoring moments are picked first |
 | `--transition` | `none` | Transition style: `none` (hard cut, lossless), `fade` (crossfade), `fadeblack` |
 | `--transition-duration` | `0.5` | Length of each transition in seconds |
 
 Two windows less than 1 second apart are always merged into one segment.
+
+When `--segments` is used, **all** qualifying moments are exported as individual files regardless of the reel cap — so you always have the full set for iMovie even if the auto reel trimmed some out.
 
 ### Crossfade transitions
 
@@ -236,7 +239,8 @@ options:
   --segments                Also export each highlight moment as a separate file
   --min-score N             Minimum frame score to include in edit (default: 6.5)
   --max-per-clip N          Maximum highlight moments per clip (default: auto, ~1 per 75 sec)
-  --highlight-window SECS   Seconds either side of each highlight moment (default: 4)
+  --highlight-window SECS   Seconds either side of each highlight moment (default: 5)
+  --max-reel-duration SECS  Cap reel length; best-scoring moments picked first (default: 180)
   --transition STYLE        Transition between clips: none, fade, fadeblack (default: none)
   --transition-duration S   Length of each transition in seconds (default: 0.5)
   --verbose, -v             Show debug-level detail
@@ -317,9 +321,10 @@ All tuning constants are at the top of `highlights.py`:
 | `FRAME_MAX_DIM` | `1280` | Maximum frame dimension sent to the API |
 | `W_VISION` | `0.65` | Vision score weight in composite |
 | `W_MOTION` | `0.35` | Motion score weight in composite |
-| `HIGHLIGHT_HALF_WIDTH` | `4.0` | Seconds either side of each qualifying moment |
+| `HIGHLIGHT_HALF_WIDTH` | `5.0` | Seconds either side of each qualifying moment (10s clips) |
 | `HIGHLIGHT_MERGE_GAP` | `1.0` | Merge highlight windows within this many seconds of each other |
 | `MIN_HIGHLIGHT_SCORE` | `6.5` | Default minimum frame score for highlight selection |
+| `MAX_REEL_DURATION` | `180.0` | Reel cap in seconds; best-scoring moments fill it first |
 | `_auto_moments_cap()` | — | Controls the per-clip moment cap formula (~1 per 75 sec, cap 5); edit the function body to change the scaling, or pass `--max-per-clip` to override at runtime |
 
 ### Adjusting the scoring balance
