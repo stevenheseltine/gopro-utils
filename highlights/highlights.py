@@ -1050,7 +1050,7 @@ def main() -> None:
     parser.add_argument("--min-score", type=float, default=MIN_HIGHLIGHT_SCORE, metavar="N",
                         help=f"Minimum frame score to include in the edit (default: {MIN_HIGHLIGHT_SCORE})")
     parser.add_argument("--max-per-clip", type=int, default=0, metavar="N",
-                        help="Maximum highlight moments per clip (default: auto — ~1 per 2 min, capped at 5)")
+                        help="Maximum highlight moments per clip (default: auto — ~1 per 45 sec, capped at 5)")
     parser.add_argument("--highlight-window", type=float, default=HIGHLIGHT_HALF_WIDTH, metavar="SECS",
                         help=f"Seconds either side of each highlight moment (default: {HIGHLIGHT_HALF_WIDTH})")
     parser.add_argument("--max-reel-duration", type=float, default=MAX_REEL_DURATION, metavar="SECS",

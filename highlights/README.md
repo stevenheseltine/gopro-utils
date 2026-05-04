@@ -80,6 +80,30 @@ echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.zshrc
 
 ## Usage
 
+### Typical workflow — finish ride, generate Strava clips
+
+```bash
+# 1. Analyse footage and generate 3 chronological 30s clips, import into Photos
+python3.13 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro-Utils/Stabiliser/Processed/2026-05-04/ \
+  --clips 3 \
+  --import-photos
+
+# 2. Wait for iCloud to sync Photos to your phone
+# 3. Attach the clips to your Strava activity
+```
+
+Re-run from the saved report to tweak settings without paying for vision scoring again:
+
+```bash
+python3.13 ~/Dev/gopro-utils/highlights/highlights.py \
+  --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04/report.json \
+  --clips 3 \
+  --min-score 7.0 \
+  --import-photos
+```
+
+---
+
 ### Basic — analyse a directory
 
 ```bash
@@ -124,7 +148,7 @@ Copies the original (unmodified) source files.
 
 ### Re-run the edit without paying for API calls again
 
-After the first run, `report.json` contains all the scoring data. Use `--from-report` to regenerate the highlight reel from it — useful for tuning `--min-score`, `--highlight-window`, `--transition`, `--max-reel-duration`, or adding a soundtrack without spending API credits:
+After the first run, `report.json` contains all the scoring data. Use `--from-report` to regenerate the highlight reel from it — useful for tuning `--min-score`, `--highlight-window`, `--transition`, or `--max-reel-duration` without spending API credits:
 
 ```bash
 # Tighten the threshold and add a crossfade
@@ -140,7 +164,17 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py \
   --import-photos
 ```
 
-The Claude-generated music prompt is stored in `report.json` and reused automatically — no extra API call.
+### Import into Apple Photos
+
+Pass `--import-photos` to send the generated clips straight into your Photos library when the run completes:
+
+```bash
+python3.13 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
+  --clips 3 \
+  --import-photos
+```
+
+Photos will open (or come to the foreground) and import the clips. The first run will prompt for terminal access to Photos — approve it once and it works silently from then on. Once in Photos, iCloud syncs the clips to your phone automatically.
 
 ### Export individual segments for editing
 
@@ -173,7 +207,7 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
 | Parameter | Default | Effect |
 |---|---|---|
 | `--min-score` | `6.5` | Minimum combined frame score (1–10) to include |
-| `--max-per-clip` | auto | Override max highlight moments per clip (default: ~1 per 45 seconds, capped at 5) |
+| `--max-per-clip` | auto | Max highlight moments per source clip (~1 per 45 sec, capped at 5) |
 | `--highlight-window` | `2` | Seconds either side of each qualifying moment (4s clips) |
 | `--max-reel-duration` | `30` | Maximum length per output clip in seconds |
 | `--clips` | `1` | Number of output clips — each covers a chronological third/quarter/etc. of the ride |
@@ -248,7 +282,7 @@ options:
   --from-report FILE        Skip analysis; re-run edit from an existing JSON report
   --segments                Also export each highlight moment as a separate file
   --min-score N             Minimum frame score to include in edit (default: 6.5)
-  --max-per-clip N          Maximum highlight moments per clip (default: auto, ~1 per 45 sec)
+  --max-per-clip N          Max highlight moments per source clip (default: auto, ~1 per 45 sec, capped at 5)
   --highlight-window SECS   Seconds either side of each highlight moment (default: 2)
   --max-reel-duration SECS  Maximum length per output clip in seconds (default: 30)
   --clips N                 Number of output clips — each covers a chronological portion of the ride (default: 1)
