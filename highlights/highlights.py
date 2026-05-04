@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -35,6 +36,8 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
+
+DEFAULT_OUTPUT_BASE = Path.home() / "Movies" / "GoPro-Utils" / "Highlights"
 
 MODEL = "claude-opus-4-7"
 VIDEO_EXTENSIONS = {".mp4", ".mov"}
@@ -1005,15 +1008,15 @@ def main() -> None:
     parser.add_argument("--api-key", type=str, default=None,
                         help="Anthropic API key (default: ANTHROPIC_API_KEY env var)")
     parser.add_argument("--output", type=Path, default=None, metavar="FILE",
-                        help="Save full JSON report to FILE")
+                        help="Save full JSON report to FILE (default: <output-dir>/report.json)")
     parser.add_argument("--from-report", type=Path, default=None, metavar="FILE",
                         help="Skip analysis; re-run edit from an existing JSON report")
     parser.add_argument("--edit-output", type=Path, default=None, metavar="FILE",
-                        help="Concatenate highlights into a single file (default: <input>/highlights.mp4)")
+                        help="Concatenate highlights into a single file (default: <output-dir>/highlights.mp4)")
     parser.add_argument("--segments", action="store_true",
                         help="Export each highlight as a separate file")
     parser.add_argument("--segments-dir", type=Path, default=None, metavar="DIR",
-                        help="Directory for segment files (default: <input>/Highlights/)")
+                        help="Directory for segment files (default: <output-dir>/)")
     parser.add_argument("--min-score", type=float, default=MIN_HIGHLIGHT_SCORE, metavar="N",
                         help=f"Minimum frame score to include in the edit (default: {MIN_HIGHLIGHT_SCORE})")
     parser.add_argument("--max-per-clip", type=int, default=0, metavar="N",
@@ -1029,6 +1032,8 @@ def main() -> None:
     args = parser.parse_args()
 
     setup_logging(args.verbose)
+
+    run_dir = DEFAULT_OUTPUT_BASE / datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
     if not args.directory.is_dir():
         logging.error(f"Not a directory: {args.directory}")
@@ -1074,16 +1079,16 @@ def main() -> None:
     print_report(results)
 
     if args.edit_output is None:
-        args.edit_output = args.directory / "Highlights" / "highlights.mp4"
+        args.edit_output = run_dir / "highlights.mp4"
     if args.output is None:
-        args.output = args.directory / "Highlights" / "report.json"
+        args.output = run_dir / "report.json"
 
     save_json_report(results, args.output)
 
     if args.copy_to:
         _copy_clips(results, args.copy_to)
 
-    segments_dir = (args.segments_dir or args.directory / "Highlights") if args.segments else None
+    segments_dir = (args.segments_dir or run_dir) if args.segments else None
 
     if args.edit_output or args.segments_dir:
         if args.no_vision:

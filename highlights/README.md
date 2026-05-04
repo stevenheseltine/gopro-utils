@@ -1,4 +1,4 @@
-# Clip Analyser
+# Highlights
 
 Scans a directory of GoPro cycling footage and automatically identifies the most interesting clips — and cuts them into a highlight reel. Combines motion data extracted from the camera's built-in sensors with Claude's vision API to produce a ranked list of clips and highlight the best moments within each one.
 
@@ -9,7 +9,7 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 3. **Frame sampling** — selects up to 24 frames per clip on a regular time grid, biased toward seconds where the motion profile peaks (so fast sections get denser coverage than idle riding)
 4. **Vision scoring** — sends each batch of frames to `claude-opus-4-7` with a cycling-specialist prompt; Claude scores visual appeal, action level, and composition for each frame. The system prompt is cached across batches to keep API costs low
 5. **Composite score** — combines the vision score (65%) and motion score (35%) into a single rank for each clip
-6. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel to a `Highlights/` subdirectory, and optionally copies the top clips or exports individual segment files
+6. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD-HH-MM-SS/`, and optionally copies the top clips or exports individual segment files
 
 ## Requirements
 
@@ -86,11 +86,13 @@ echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.zshrc
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/
 ```
 
-Every run automatically produces three outputs in a `Highlights/` subdirectory inside the input directory:
+Every run automatically produces three outputs in a timestamped directory under `~/Movies/GoPro-Utils/Highlights/`:
 
 1. A ranked table in the terminal
-2. `Highlights/highlights.mp4` — a single highlight reel of the best moments
-3. `Highlights/report.json` — a full JSON report with scores and frame-level detail
+2. `~/Movies/GoPro-Utils/Highlights/2026-05-04-14-30-00/highlights.mp4` — a single highlight reel of the best moments
+3. `~/Movies/GoPro-Utils/Highlights/2026-05-04-14-30-00/report.json` — a full JSON report with scores and frame-level detail
+
+Each run gets its own timestamped directory so previous outputs are never overwritten.
 
 Terminal output:
 
@@ -123,12 +125,12 @@ Copies the original (unmodified) source files.
 
 ### Re-run the edit without paying for API calls again
 
-After the first run, `Highlights/report.json` contains all the scoring data. Use `--from-report` to regenerate the highlight reel from it — useful for tuning `--min-score`, `--highlight-window`, or `--transition` without spending API credits:
+After the first run, `report.json` contains all the scoring data. Use `--from-report` to regenerate the highlight reel from it — useful for tuning `--min-score`, `--highlight-window`, or `--transition` without spending API credits:
 
 ```bash
 # Tighten the threshold and add a crossfade
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
-  --from-report ~/Movies/GoPro/Highlights/report.json \
+  --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04-14-30-00/report.json \
   --min-score 7.5 \
   --transition fade
 ```
@@ -141,7 +143,7 @@ Pass `--segments` to export each highlight moment as its own file, in addition t
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ --segments
 ```
 
-Segment files appear in `Highlights/` alongside the combined reel. Override the location with `--segments-dir`:
+Segment files appear in the same timestamped run directory as the highlight reel. Override the location with `--segments-dir`:
 
 ```bash
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
@@ -234,11 +236,11 @@ options:
   --copy-to DIR             Copy top clips to this directory
   --no-vision               Skip the vision API — motion data and neutral scores only
   --api-key API_KEY         Anthropic API key (default: ANTHROPIC_API_KEY env var)
-  --output FILE             Save JSON report to FILE (default: <input>/Highlights/report.json)
+  --output FILE             Save JSON report to FILE (default: <output-dir>/report.json)
   --from-report FILE        Skip analysis; re-run edit from an existing JSON report
-  --edit-output FILE        Write highlight reel to FILE (default: <input>/Highlights/highlights.mp4)
+  --edit-output FILE        Write highlight reel to FILE (default: <output-dir>/highlights.mp4)
   --segments                Export each highlight as a separate file
-  --segments-dir DIR        Directory for segment files (default: <input>/Highlights/)
+  --segments-dir DIR        Directory for segment files (default: <output-dir>/)
   --min-score N             Minimum frame score to include in edit (default: 6.5)
   --max-per-clip N          Maximum highlight moments per clip (default: auto, ~1 per 75 sec)
   --highlight-window SECS   Seconds either side of each highlight moment (default: 4)
@@ -312,6 +314,7 @@ All tuning constants are at the top of `highlights.py`:
 
 | Variable | Default | Description |
 |---|---|---|
+| `DEFAULT_OUTPUT_BASE` | `~/Movies/GoPro-Utils/Highlights` | Root directory for timestamped run outputs |
 | `MODEL` | `claude-opus-4-7` | Anthropic model for vision scoring |
 | `MAX_FRAMES_PER_CLIP` | `24` | Maximum frames sampled per clip |
 | `FRAMES_PER_BATCH` | `4` | Frames per API call |
