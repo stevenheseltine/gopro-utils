@@ -136,7 +136,7 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
   --transition fade
 ```
 
-### Export individual segments for iMovie
+### Export individual segments for editing
 
 Pass `--segments` to export each highlight moment as its own file alongside the combined reel:
 
@@ -144,7 +144,7 @@ Pass `--segments` to export each highlight moment as its own file alongside the 
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ --segments
 ```
 
-Files are named by source clip and timestamp range, e.g. `001_GX010308_stabilized_0m33s-0m43s.mp4`, and land in the same output directory as `highlights.mp4` and `report.json`. Import the folder into iMovie and it treats each as its own clip — drag transitions between them naturally in the timeline.
+Files are named by source clip and timestamp range, e.g. `001_GX010308_stabilized_0m33s-0m43s.mp4`, and land in the same output directory as `highlights.mp4` and `report.json`. Import the folder into your editor of choice (iMovie, DaVinci Resolve, Final Cut, etc.) and each file is treated as its own clip — drag transitions between them naturally in the timeline.
 
 The files are lossless stream copies of the original footage.
 
@@ -175,7 +175,7 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
 
 Two windows less than 1 second apart are always merged into one segment.
 
-When `--segments` is used, **all** qualifying moments are exported as individual files regardless of the reel cap — so you always have the full set for iMovie even if the auto reel trimmed some out.
+When `--segments` is used, **all** qualifying moments are exported as individual files regardless of the reel cap — so you always have the full set for your editor even if the auto reel trimmed some out.
 
 ### Crossfade transitions
 
