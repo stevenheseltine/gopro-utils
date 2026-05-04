@@ -1178,6 +1178,8 @@ def main() -> None:
                        help="Beatoven.ai API key (default: BEATOVEN_API_KEY env var)")
     music.add_argument("--music-volume", type=float, default=DEFAULT_MUSIC_VOLUME, metavar="LEVEL",
                        help=f"Music level in the mix, 0.0–1.0 (default: {DEFAULT_MUSIC_VOLUME})")
+    music.add_argument("--regen-music-prompt", action="store_true",
+                       help="Re-generate the Claude music prompt from existing frame descriptions and update report.json")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -1188,6 +1190,8 @@ def main() -> None:
         logging.info(f"Using custom prompt: {args.prompt_file}")
 
     run_dir = DEFAULT_OUTPUT_BASE / datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+
+    client: anthropic.Anthropic | None = None
 
     if args.from_report:
         if not args.from_report.exists():
@@ -1217,7 +1221,6 @@ def main() -> None:
             logging.error("No readable clips found")
             sys.exit(1)
 
-        client: anthropic.Anthropic | None = None
         if not args.no_vision:
             client = _make_api_client(args.api_key)
 
@@ -1236,8 +1239,11 @@ def main() -> None:
 
     output_dir = args.output or run_dir
 
-    # Generate music prompt from Claude if we ran a fresh analysis with vision
-    if not args.from_report and client is not None and stored_music_prompt is None:
+    # Generate (or regenerate) music prompt via Claude
+    auto_gen = not args.from_report and not args.no_vision
+    if args.regen_music_prompt or auto_gen:
+        if client is None:
+            client = _make_api_client(args.api_key)
         try:
             stored_music_prompt = _generate_music_prompt_via_claude(results, client)
             logging.info(f"Music prompt: {stored_music_prompt!r}")
