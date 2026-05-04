@@ -237,37 +237,41 @@ def get_capture_date(path: Path) -> date:
     )
 
 
-def _read_creation_time(path: Path) -> str | None:
-    """Return the raw creation_time string from the MP4 container, or None."""
+def _read_format_tags(path: Path) -> dict[str, str]:
+    """Return all format-level metadata tags from the MP4 container."""
     try:
         result = subprocess.run(
             [FFPROBE, "-v", "quiet", "-print_format", "json", "-show_format", str(path)],
             capture_output=True, text=True, timeout=15,
         )
         if result.returncode == 0:
-            return json.loads(result.stdout).get("format", {}).get("tags", {}).get("creation_time")
+            return json.loads(result.stdout).get("format", {}).get("tags", {})
     except Exception:
         pass
-    return None
+    return {}
 
 
-def _patch_creation_time(path: Path, creation_time: str) -> None:
-    """Re-write creation_time on a file using stream copy (no re-encode)."""
+def _patch_metadata(path: Path, tags: dict[str, str]) -> None:
+    """Re-write format tags on a file using stream copy (no re-encode)."""
+    if not tags:
+        return
     tmp = path.with_suffix(".meta_tmp" + path.suffix)
     try:
+        metadata_args: list[str] = []
+        for key, value in tags.items():
+            metadata_args += ["-metadata", f"{key}={value}"]
         result = subprocess.run(
             [FFMPEG, "-v", "quiet", "-i", str(path),
-             "-c", "copy", "-metadata", f"creation_time={creation_time}",
-             "-y", str(tmp)],
+             "-c", "copy"] + metadata_args + ["-y", str(tmp)],
             capture_output=True, timeout=120,
         )
         if result.returncode == 0 and tmp.exists():
             tmp.replace(path)
-            logging.info(f"[META]   Restored creation_time={creation_time} → {path.name}")
+            logging.info(f"[META]   Restored {len(tags)} tag(s) from source → {path.name}")
         else:
-            logging.warning(f"[META]   Could not patch creation_time in {path.name}")
+            logging.warning(f"[META]   Could not patch metadata in {path.name}")
     except Exception as exc:
-        logging.warning(f"[META]   creation_time patch failed for {path.name}: {exc}")
+        logging.warning(f"[META]   Metadata patch failed for {path.name}: {exc}")
     finally:
         if tmp.exists():
             tmp.unlink()
@@ -293,7 +297,7 @@ def _move_output(expected_output: Path, src: Path, processed_dir: Path) -> Path:
 def process_file(src: Path, dirs: Dirs) -> None:
     logging.info(f"[START]  {src.name}")
     expected_output = src.with_name(src.stem + OUTPUT_SUFFIX + src.suffix)
-    creation_time = _read_creation_time(src)
+    source_tags = _read_format_tags(src)
 
     try:
         result = _run_gyroflow(src)
@@ -321,8 +325,8 @@ def process_file(src: Path, dirs: Dirs) -> None:
         shutil.move(str(src), dirs.failed / src.name)
         return
 
-    if creation_time:
-        _patch_creation_time(expected_output, creation_time)
+    if source_tags:
+        _patch_metadata(expected_output, source_tags)
 
     dest = _move_output(expected_output, src, dirs.processed)
     extract_gpmf_sidecar(src, dest.parent, dest.stem)
