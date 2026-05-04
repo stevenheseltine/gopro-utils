@@ -6,7 +6,7 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 
 1. **Probe** — reads duration, resolution, and frame rate from every MP4/MOV in the target directory via ffprobe
 2. **Motion profile** — extracts the GoPro GPMF telemetry track (gyroscope + accelerometer) and builds a per-second motion magnitude curve for each clip
-3. **Frame sampling** — selects up to 24 frames per clip on a regular time grid, biased toward seconds where the motion profile peaks (so fast sections get denser coverage than idle riding)
+3. **Frame sampling** — selects up to 24 frames per clip on a regular time grid, biased toward seconds where the motion profile peaks (so fast sections get denser coverage than slow sections)
 4. **Vision scoring** — sends each batch of frames to `claude-opus-4-7` with a cycling-specialist prompt; Claude scores visual appeal, action level, and composition for each frame. The system prompt is cached across batches to keep API costs low
 5. **Composite score** — combines the vision score (65%) and motion score (35%) into a single rank for each clip
 6. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel (capped at 2 min 30, best-scoring moments first) to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD-HH-MM-SS/`, and optionally exports all qualifying moments as individual segment files
@@ -275,7 +275,7 @@ If no GPMF data is found (e.g. the footage was transcoded and the metadata strea
 | Under 10 min | Every 10s | 24 |
 | Over 10 min | Every 20s | 24 |
 
-Seconds where the GPMF motion profile exceeds the 80th percentile are also sampled, up to the 24-frame cap. This means a 1-hour ride produces roughly the same number of API calls as a 5-minute clip, with coverage biased toward the most dynamic sections.
+Seconds where the GPMF motion profile exceeds the 80th percentile are also sampled, up to the 24-frame cap. This means a 1-hour clip produces roughly the same number of API calls as a 5-minute clip, with coverage biased toward the most dynamic sections.
 
 ## API cost
 
