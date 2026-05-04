@@ -566,8 +566,12 @@ def _frame_to_dict(f: FrameScore) -> dict:
     }
 
 
-def save_json_report(results: list[ClipResult], output_path: Path) -> None:
-    data = [
+def save_json_report(
+    results: list[ClipResult],
+    output_path: Path,
+    music_prompt: str | None = None,
+) -> None:
+    clips = [
         {
             "clip": str(r.clip.path),
             "duration_seconds": r.clip.duration,
@@ -579,18 +583,29 @@ def save_json_report(results: list[ClipResult], output_path: Path) -> None:
         }
         for r in results
     ]
+    data: dict = {"clips": clips}
+    if music_prompt:
+        data["music_prompt"] = music_prompt
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as fh:
         json.dump(data, fh, indent=2)
     logging.info(f"Report saved to {output_path}")
 
 
-def load_results_from_json(report_path: Path) -> list[ClipResult]:
+def load_results_from_json(report_path: Path) -> tuple[list[ClipResult], str | None]:
     with open(report_path) as fh:
         data = json.load(fh)
 
+    # Support both old format (bare list) and new format (dict with "clips" key)
+    if isinstance(data, list):
+        entries = data
+        music_prompt = None
+    else:
+        entries = data.get("clips", [])
+        music_prompt = data.get("music_prompt")
+
     results = []
-    for entry in data:
+    for entry in entries:
         clip_path = Path(entry["clip"])
         clip_info = probe_clip(clip_path)
         if clip_info is None:
@@ -600,7 +615,6 @@ def load_results_from_json(report_path: Path) -> list[ClipResult]:
                 width=0, height=0, fps=0,
             )
 
-        # Use all frames if available; fall back to best_moments for older reports
         raw_frames = entry.get("frames") or entry.get("best_moments", [])
         frame_scores = [
             FrameScore(
@@ -619,7 +633,7 @@ def load_results_from_json(report_path: Path) -> list[ClipResult]:
             frame_scores=frame_scores,
         ))
 
-    return results
+    return results, music_prompt
 
 
 # ---------------------------------------------------------------------------
@@ -981,6 +995,39 @@ def _run_analysis(
 _MUSIC_MODEL_SIZES = {"small": "300 MB", "medium": "1.5 GB", "large": "3.3 GB"}
 
 
+def _generate_music_prompt_via_claude(
+    results: list[ClipResult],
+    client: anthropic.Anthropic,
+) -> str:
+    top_descriptions = sorted(
+        [
+            (f.combined, f.description)
+            for r in results
+            for f in r.best_moments[:2]
+            if f.description
+        ],
+        reverse=True,
+    )[:6]
+
+    descriptions = "\n".join(
+        f"- {desc} ({score:.1f})" for score, desc in top_descriptions
+    )
+    response = client.messages.create(
+        model=MUSIC_PROMPT_MODEL,
+        max_tokens=80,
+        messages=[{
+            "role": "user",
+            "content": (
+                "Based on these descriptions of the best moments in a GoPro highlight reel, "
+                "write a single music generation prompt (under 30 words) for MusicGen. "
+                "Output only the prompt, nothing else.\n\n"
+                f"{descriptions}"
+            ),
+        }],
+    )
+    return response.content[0].text.strip()
+
+
 def _derive_music_prompt(results: list[ClipResult]) -> str:
     avg_composite = sum(r.composite_score for r in results) / len(results)
     avg_motion    = sum(r.motion_score    for r in results) / len(results)
@@ -990,6 +1037,8 @@ def _derive_music_prompt(results: list[ClipResult]) -> str:
         return "cinematic adventure music, inspiring, moderate tempo, outdoor"
     return "ambient atmospheric music, calm, peaceful, scenic outdoor"
 
+
+MUSIC_PROMPT_MODEL = "claude-haiku-4-5-20251001"
 
 _MUSIC_GEN_HELPER = Path(__file__).parent / "_music_gen.py"
 _MUSIC_PYTHON_CANDIDATES = ["python3.12", "python3.11", "python3"]
@@ -1131,7 +1180,7 @@ def main() -> None:
             logging.error(f"Report not found: {args.from_report}")
             sys.exit(1)
         logging.info(f"Loading results from {args.from_report}")
-        results = load_results_from_json(args.from_report)
+        results, stored_music_prompt = load_results_from_json(args.from_report)
     else:
         if not args.directory:
             parser.error("directory is required unless --from-report is specified")
@@ -1159,6 +1208,7 @@ def main() -> None:
             client = _make_api_client(args.api_key)
 
         results = _run_analysis(clips, client, system_prompt)
+        stored_music_prompt = None
 
     results.sort(key=lambda r: r.composite_score, reverse=True)
 
@@ -1172,7 +1222,15 @@ def main() -> None:
 
     output_dir = args.output or run_dir
 
-    save_json_report(results, output_dir / REPORT_FILENAME)
+    # Generate music prompt from Claude if we ran a fresh analysis with vision
+    if not args.from_report and client is not None and stored_music_prompt is None:
+        try:
+            stored_music_prompt = _generate_music_prompt_via_claude(results, client)
+            logging.info(f"Music prompt: {stored_music_prompt!r}")
+        except Exception as exc:
+            logging.warning(f"Could not generate music prompt via Claude: {exc}")
+
+    save_json_report(results, output_dir / REPORT_FILENAME, music_prompt=stored_music_prompt)
 
     if args.copy_to:
         _copy_clips(results, args.copy_to)
@@ -1205,7 +1263,11 @@ def main() -> None:
             if reel_info is None:
                 logging.warning("Could not probe reel duration — skipping music generation")
             else:
-                music_prompt = args.music_prompt or _derive_music_prompt(results)
+                music_prompt = (
+                    args.music_prompt
+                    or stored_music_prompt
+                    or _derive_music_prompt(results)
+                )
                 logging.info(f"Music prompt: {music_prompt!r}")
                 soundtrack_path = output_dir / MUSIC_FILENAME
                 _generate_soundtrack(
