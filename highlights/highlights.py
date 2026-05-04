@@ -976,7 +976,7 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("directory", type=Path, help="Directory containing GoPro footage")
+    parser.add_argument("directory", type=Path, nargs="?", help="Directory containing GoPro footage (not required with --from-report)")
     parser.add_argument("--top", type=int, default=0, metavar="N",
                         help="Show only the top N clips (default: all)")
     parser.add_argument("--chronological", action="store_true",
@@ -1021,26 +1021,6 @@ def main() -> None:
 
     run_dir = DEFAULT_OUTPUT_BASE / datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
-    if not args.directory.is_dir():
-        logging.error(f"Not a directory: {args.directory}")
-        sys.exit(1)
-
-    clip_paths = sorted(
-        p for p in args.directory.iterdir()
-        if p.suffix.lower() in VIDEO_EXTENSIONS
-    )
-    if not clip_paths:
-        logging.error(f"No video files found in {args.directory}")
-        sys.exit(1)
-
-    logging.info(f"Found {len(clip_paths)} clip(s) in {args.directory}")
-
-    clips = _probe_clips(clip_paths)
-
-    if not clips:
-        logging.error("No readable clips found")
-        sys.exit(1)
-
     if args.from_report:
         if not args.from_report.exists():
             logging.error(f"Report not found: {args.from_report}")
@@ -1048,6 +1028,27 @@ def main() -> None:
         logging.info(f"Loading results from {args.from_report}")
         results = load_results_from_json(args.from_report)
     else:
+        if not args.directory:
+            parser.error("directory is required unless --from-report is specified")
+        if not args.directory.is_dir():
+            logging.error(f"Not a directory: {args.directory}")
+            sys.exit(1)
+
+        clip_paths = sorted(
+            p for p in args.directory.iterdir()
+            if p.suffix.lower() in VIDEO_EXTENSIONS
+        )
+        if not clip_paths:
+            logging.error(f"No video files found in {args.directory}")
+            sys.exit(1)
+
+        logging.info(f"Found {len(clip_paths)} clip(s) in {args.directory}")
+
+        clips = _probe_clips(clip_paths)
+        if not clips:
+            logging.error("No readable clips found")
+            sys.exit(1)
+
         client: anthropic.Anthropic | None = None
         if not args.no_vision:
             client = _make_api_client(args.api_key)
