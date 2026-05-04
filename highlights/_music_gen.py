@@ -32,8 +32,9 @@ def main() -> None:
     device = "mps" if torch.backends.mps.is_available() else "cpu"
     model_id = f"facebook/musicgen-{model_size}"
 
+    # use_safetensors=True avoids torch.load CVE-2025-32434 restriction (requires torch>=2.6 for .bin)
     processor = AutoProcessor.from_pretrained(model_id)
-    model = MusicgenForConditionalGeneration.from_pretrained(model_id).to(device)
+    model = MusicgenForConditionalGeneration.from_pretrained(model_id, use_safetensors=True).to(device)
 
     inputs = processor(text=[prompt], padding=True, return_tensors="pt").to(device)
 

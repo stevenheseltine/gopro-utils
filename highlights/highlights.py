@@ -992,7 +992,7 @@ def _run_analysis(
 # Soundtrack
 # ---------------------------------------------------------------------------
 
-_MUSIC_MODEL_SIZES = {"small": "~2.2 GB", "medium": "~3.5 GB", "large": "~5 GB"}
+_MUSIC_MODEL_SIZES = {"small": "~2.2 GB", "medium": "~8 GB", "large": "~12 GB"}
 
 
 def _generate_music_prompt_via_claude(
@@ -1161,7 +1161,7 @@ def main() -> None:
                        help="Music generation prompt (default: Claude-generated from frame descriptions, stored in report.json)")
     music.add_argument("--music-model", choices=["small", "medium", "large"],
                        default=DEFAULT_MUSIC_MODEL,
-                       help="MusicGen model size: small (~2.2GB), medium (~3.5GB), large (~5GB) (default: small)")
+                       help="MusicGen model size: small (~2.2GB), medium (~8GB), large (~12GB) (default: small)")
     music.add_argument("--music-volume", type=float, default=DEFAULT_MUSIC_VOLUME, metavar="LEVEL",
                        help=f"Music level in the mix, 0.0–1.0 (default: {DEFAULT_MUSIC_VOLUME})")
     parser.add_argument("--verbose", "-v", action="store_true")
