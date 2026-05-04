@@ -59,10 +59,10 @@ W_VISION = 0.65
 W_MOTION = 0.35
 
 # Edit generation
-HIGHLIGHT_HALF_WIDTH    = 5.0   # seconds either side of each qualifying moment
+HIGHLIGHT_HALF_WIDTH    = 2.0   # seconds either side of each qualifying moment
 HIGHLIGHT_MERGE_GAP     = 1.0   # merge windows within this many seconds of each other
 MIN_HIGHLIGHT_SCORE     = 6.5   # default minimum combined frame score to include
-MAX_REEL_DURATION       = 150.0 # cap the assembled reel at this many seconds (2 min 30)
+MAX_REEL_DURATION       = 30.0  # cap per output clip in seconds (Strava limit)
 
 # Seconds kept clear at each end of a clip when selecting sample timestamps
 CLIP_EDGE_MARGIN = 3.0
@@ -903,7 +903,8 @@ def build_edit(
     transition: str,
     transition_duration: float,
     max_reel_duration: float,
-) -> None:
+    num_clips: int = 1,
+) -> list[Path]:
     all_segments = select_edit_segments(results, min_score, half_width, HIGHLIGHT_MERGE_GAP, max_per_clip)
 
     if not all_segments:
@@ -911,16 +912,10 @@ def build_edit(
             f"[EDIT]   No segments found above score {min_score:.1f}. "
             "Try lowering --min-score, or run without --no-vision."
         )
-        return
+        return []
 
-    reel_segments = _cap_reel_segments(all_segments, max_reel_duration)
-    reel_total = sum(s.duration for s in reel_segments)
     mode = f"{transition} ({transition_duration}s)" if transition != "none" else "hard cut"
-    logging.info(
-        f"[EDIT]   {len(all_segments)} qualifying segment(s) — "
-        f"reel: {len(reel_segments)} segment(s), ~{_fmt_duration(reel_total)}  "
-        f"transition: {mode}"
-    )
+    logging.info(f"[EDIT]   {len(all_segments)} qualifying segment(s) — generating {num_clips} clip(s), transition: {mode}")
 
     with tempfile.TemporaryDirectory(prefix="highlights_edit_") as tmpdir:
         tmp = Path(tmpdir)
@@ -928,16 +923,38 @@ def build_edit(
 
         if not all_paths:
             logging.error("[EDIT]   All segment extractions failed")
-            return
+            return []
 
         if save_segments:
             _save_segment_files(all_paths, all_segments, output_dir)
 
-        # Build a path lookup keyed by (clip path, start time) to map reel segments → extracted files
         path_by_key = {(s.clip.path, s.start): p for s, p in zip(all_segments, all_paths)}
-        reel_paths = [path_by_key[(s.clip.path, s.start)] for s in reel_segments]
 
-        _assemble_reel(reel_paths, output_dir / REEL_FILENAME, reel_total, transition, transition_duration, tmp)
+        pool = list(all_segments)
+        output_reels: list[Path] = []
+
+        for clip_num in range(1, num_clips + 1):
+            if not pool:
+                logging.info(f"[EDIT]   No segments remaining for clip {clip_num} — stopping")
+                break
+
+            reel_segments = _cap_reel_segments(pool, max_reel_duration)
+            selected = set(reel_segments)
+            pool = [s for s in pool if s not in selected]
+
+            reel_total = sum(s.duration for s in reel_segments)
+            suffix = f"_{clip_num}" if num_clips > 1 else ""
+            reel_path = output_dir / f"highlights{suffix}.mp4"
+
+            logging.info(
+                f"[EDIT]   Clip {clip_num}/{num_clips}: {len(reel_segments)} segment(s), ~{_fmt_duration(reel_total)}"
+            )
+
+            seg_paths = [path_by_key[(s.clip.path, s.start)] for s in reel_segments]
+            _assemble_reel(seg_paths, reel_path, reel_total, transition, transition_duration, tmp)
+            output_reels.append(reel_path)
+
+        return output_reels
 
 
 # ---------------------------------------------------------------------------
@@ -1162,8 +1179,9 @@ def main() -> None:
     parser.add_argument("--highlight-window", type=float, default=HIGHLIGHT_HALF_WIDTH, metavar="SECS",
                         help=f"Seconds either side of each highlight moment (default: {HIGHLIGHT_HALF_WIDTH})")
     parser.add_argument("--max-reel-duration", type=float, default=MAX_REEL_DURATION, metavar="SECS",
-                        help=f"Maximum reel length in seconds — best-scoring segments are picked first "
-                             f"(default: {int(MAX_REEL_DURATION)})")
+                        help=f"Maximum length per output clip in seconds (default: {int(MAX_REEL_DURATION)})")
+    parser.add_argument("--clips", type=int, default=1, metavar="N",
+                        help="Number of highlight clips to generate — each picks the next-best moments not used in a prior clip (default: 1)")
     parser.add_argument("--transition", default="none",
                         choices=["none", "fade", "fadeblack"],
                         help="Transition between clips: none (hard cut, lossless), fade, fadeblack (default: none)")
@@ -1262,7 +1280,7 @@ def main() -> None:
             "meaningful highlight selection."
         )
 
-    build_edit(
+    output_reels = build_edit(
         results,
         output_dir=output_dir,
         save_segments=args.segments,
@@ -1272,13 +1290,14 @@ def main() -> None:
         transition=args.transition,
         transition_duration=args.transition_duration,
         max_reel_duration=args.max_reel_duration,
+        num_clips=args.clips,
     )
 
     if args.music:
-        reel_path = output_dir / REEL_FILENAME
-        if not reel_path.exists():
-            logging.warning("No highlight reel found — skipping music generation")
-        else:
+        if args.clips > 1:
+            logging.warning("[MUSIC]  --music is not supported with --clips > 1 — skipping")
+        elif output_reels:
+            reel_path = output_reels[0]
             reel_info = probe_clip(reel_path)
             if reel_info is None:
                 logging.warning("Could not probe reel duration — skipping music generation")
