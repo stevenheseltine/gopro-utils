@@ -9,7 +9,7 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 3. **Frame sampling** — selects up to 24 frames per clip on a regular time grid, biased toward seconds where the motion profile peaks (so fast sections get denser coverage than idle riding)
 4. **Vision scoring** — sends each batch of frames to `claude-opus-4-7` with a cycling-specialist prompt; Claude scores visual appeal, action level, and composition for each frame. The system prompt is cached across batches to keep API costs low
 5. **Composite score** — combines the vision score (65%) and motion score (35%) into a single rank for each clip
-6. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD-HH-MM-SS/`, and optionally copies the top clips or exports individual segment files
+6. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel (capped at 3 minutes, best-scoring moments first) to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD-HH-MM-SS/`, and optionally exports all qualifying moments as individual segment files
 
 ## Requirements
 
@@ -86,11 +86,12 @@ echo 'export ANTHROPIC_API_KEY="sk-ant-..."' >> ~/.zshrc
 python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/
 ```
 
-Every run automatically produces three outputs in a timestamped directory under `~/Movies/GoPro-Utils/Highlights/`:
+Every run automatically produces outputs in a timestamped directory under `~/Movies/GoPro-Utils/Highlights/`:
 
 1. A ranked table in the terminal
-2. `~/Movies/GoPro-Utils/Highlights/2026-05-04-14-30-00/highlights.mp4` — a single highlight reel of the best moments
-3. `~/Movies/GoPro-Utils/Highlights/2026-05-04-14-30-00/report.json` — a full JSON report with scores and frame-level detail
+2. `highlights.mp4` — a highlight reel capped at 3 minutes, built from the highest-scoring moments
+3. `report.json` — a full JSON report with scores and frame-level detail
+4. Individual segment files (if `--segments` is passed) — every qualifying moment, uncapped
 
 Each run gets its own timestamped directory so previous outputs are never overwritten.
 
