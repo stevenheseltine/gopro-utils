@@ -44,7 +44,7 @@ Combines two scoring signals:
 - **Motion score** — extracted from the GPMF gyroscope and accelerometer data embedded in the clip (or the `.gpmf` sidecar written by the Stabiliser). Rewards dynamic, varied motion over flat steady-state footage.
 - **Vision score** — sampled frames are sent to `claude-opus-4-7` and scored on visual appeal, action intensity, and composition, using a two-stage quality-gate and interestingness approach modelled on how GoPro Quik is known to work.
 
-The combined score ranks every clip and identifies the best moments within each one. The tool then cuts a highlight reel automatically — either as individual segments for iMovie, DaVinci Resolve, or any other editor, or as a single concatenated file. Optionally generates an AI soundtrack using [MusicGen](https://audiocraft.metademolab.com/) (Meta, runs locally), with the music prompt synthesised by Claude from the frame descriptions.
+The combined score ranks every clip and identifies the best moments within each one. The tool then cuts one or more highlight clips automatically — defaults to 30-second clips suitable for Strava. Optionally imports directly into Apple Photos with `--import-photos`.
 
 → [Full documentation](highlights/README.md)
 
@@ -58,6 +58,5 @@ The combined score ranks every clip and identifies the best moments within each 
 - ffmpeg 8.0+
 - [GyroFlow](https://gyroflow.xyz/) (Stabiliser only)
 - An [Anthropic API key](https://console.anthropic.com/) (Highlights vision scoring only)
-- A [Beatoven.ai API key](https://www.beatoven.ai/) (Highlights `--music` only)
 
 See each tool's README for installation instructions.

@@ -9,8 +9,7 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 3. **Frame sampling** — selects up to 24 frames per clip on a regular time grid, biased toward seconds where the motion profile peaks (so fast sections get denser coverage than slow sections)
 4. **Vision scoring** — sends each batch of frames to `claude-opus-4-7` with a cycling-specialist prompt; Claude scores visual appeal, action level, and composition for each frame. The system prompt is cached across batches to keep API costs low
 5. **Composite score** — combines the vision score (65%) and motion score (35%) into a single rank for each clip
-6. **Music prompt** — Claude Haiku synthesises the top frame descriptions into a Beatoven.ai music prompt and stores it in `report.json` for later use with `--music`
-7. **Output** — prints a ranked table to the terminal, saves a JSON report and one or more 30-second highlight clips to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD/`, and optionally exports all qualifying moments as individual segment files or mixes in an AI soundtrack
+6. **Output** — prints a ranked table to the terminal, saves a JSON report and one or more 30-second highlight clips to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD/`, and optionally exports all qualifying moments as individual segment files or imports directly into Apple Photos
 
 ## Requirements
 
@@ -19,7 +18,6 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 - Python 3.13+
 - ffmpeg 8.0+
 - An [Anthropic API key](https://console.anthropic.com/) (only needed for vision scoring; see `--no-vision` to skip)
-- A [Beatoven.ai API key](https://www.beatoven.ai/) (only needed for `--music`)
 
 ## Installation
 
@@ -92,9 +90,8 @@ Every run produces outputs in a date-stamped directory under `~/Movies/GoPro-Uti
 
 1. A ranked table in the terminal
 2. `highlights.mp4` — a 30-second highlight clip built from the best-scoring moments (or `highlights_1.mp4`, `highlights_2.mp4`, … with `--clips N`)
-3. `report.json` — a full JSON report with scores, frame-level detail, and a Claude-generated music prompt
+3. `report.json` — a full JSON report with scores and frame-level detail
 4. Individual segment files (if `--segments` is passed) — every qualifying moment, uncapped
-5. `highlights_with_music.mp4` + `soundtrack.wav` (if `--music` is passed) — reel with an AI-generated soundtrack mixed in
 
 Terminal output:
 
@@ -136,16 +133,11 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py \
   --min-score 7.5 \
   --transition fade
 
-# Add a soundtrack to an existing reel
+# Generate 3 Strava clips from an existing report
 python3 ~/Dev/gopro-utils/highlights/highlights.py \
   --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04/report.json \
-  --music
-
-# Regenerate the music prompt with updated genre preferences, then generate 3 Strava clips
-python3 ~/Dev/gopro-utils/highlights/highlights.py \
-  --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04/report.json \
-  --regen-music-prompt \
-  --clips 3
+  --clips 3 \
+  --import-photos
 ```
 
 The Claude-generated music prompt is stored in `report.json` and reused automatically — no extra API call.
@@ -239,9 +231,7 @@ usage: highlights.py [-h] [--top N] [--chronological] [--copy-to DIR]
                         [--min-score N] [--highlight-window SECS]
                         [--max-reel-duration SECS] [--clips N]
                         [--transition STYLE] [--transition-duration SECS]
-                        [--music] [--music-prompt TEXT] [--music-api-key KEY]
-                        [--music-volume LEVEL] [--regen-music-prompt]
-                        [--verbose]
+                        [--import-photos] [--verbose]
                         directory
 
 positional arguments:
@@ -264,11 +254,7 @@ options:
   --clips N                 Number of output clips — each covers a chronological portion of the ride (default: 1)
   --transition STYLE        Transition between segments: none, fade, fadeblack (default: none)
   --transition-duration S   Length of each transition in seconds (default: 0.5)
-  --music                   Generate and mix an AI soundtrack via Beatoven.ai
-  --music-prompt TEXT       Music generation prompt (default: Claude-generated, stored in report.json)
-  --music-api-key KEY       Beatoven.ai API key (default: BEATOVEN_API_KEY env var)
-  --music-volume LEVEL      Music level in the mix, 0.0–1.0 (default: 0.8)
-  --regen-music-prompt      Re-generate the Claude music prompt from existing frame descriptions
+  --import-photos           Import generated highlight clips into Apple Photos
   --verbose, -v             Show debug-level detail
 ```
 
@@ -403,7 +389,6 @@ Either way, the system prompt cache still applies across all batches in a single
 
 ```json
 {
-  "music_prompt": "dramatic cycling music, stormy moorland descent, driving rhythm, triumphant",
   "clips": [
     {
       "clip": "~/Movies/GoPro/GH010042.MP4",
@@ -431,46 +416,7 @@ Either way, the system prompt cache still applies across all batches in a single
 }
 ```
 
-`music_prompt` is generated by Claude Haiku at the end of each analysis run, synthesised from the top frame descriptions. It is used automatically when `--music` is passed — including on `--from-report` runs. Old reports (bare JSON array) are still supported.
-
-`best_moments` contains the top 5 frames by combined score. `frames` contains every sampled frame, which is what `--from-report` uses to re-run highlight selection with different thresholds.
-
-## Soundtrack
-
-Pass `--music` to generate an AI soundtrack and mix it onto the highlight reel. Uses [Beatoven.ai](https://www.beatoven.ai/) — an API that generates music to an exact duration from a text prompt.
-
-```bash
-python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ --music
-```
-
-The music prompt is generated by Claude Haiku at the end of each analysis run — synthesised from the top frame descriptions and stored in `report.json`. When you pass `--music`, it uses that stored prompt automatically, including on `--from-report` runs. Override it with `--music-prompt`:
-
-```bash
-python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
-  --music --music-prompt "dramatic orchestral cycling climax"
-```
-
-Output: `highlights_with_music.mp4` alongside the existing `highlights.mp4`. The intermediate `soundtrack.wav` is also kept so you can use `--from-report` to remix without regenerating.
-
-`--music` applies to a single clip only. If you use `--clips N`, music generation is skipped with a warning — generate your clips first, then pick the one you want to score separately.
-
-| Flag | Default | Effect |
-|---|---|---|
-| `--music` | off | Enable soundtrack generation |
-| `--music-prompt TEXT` | auto | Override the Claude-generated mood prompt |
-| `--music-api-key KEY` | env | Beatoven.ai API key (default: `BEATOVEN_API_KEY` env var) |
-| `--music-volume` | `0.8` | Music level in the mix (original audio ducked to 0.15) |
-
-### Setting up Beatoven.ai
-
-1. Create an account at [beatoven.ai](https://www.beatoven.ai/) and obtain an API key from your account settings.
-2. Set the key as an environment variable:
-
-```bash
-export BEATOVEN_API_KEY="your-key-here"
-```
-
-Add that to `~/.zshrc` to make it permanent. No additional Python packages are required — the soundtrack feature uses only the standard library.
+`best_moments` contains the top 5 frames by combined score. `frames` contains every sampled frame, which is what `--from-report` uses to re-run highlight selection with different thresholds. Old reports with a `music_prompt` field are still loaded without error — that field is simply ignored.
 
 ## Limitations
 

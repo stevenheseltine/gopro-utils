@@ -67,14 +67,6 @@ MAX_REEL_DURATION       = 30.0  # cap per output clip in seconds (Strava limit)
 # Seconds kept clear at each end of a clip when selecting sample timestamps
 CLIP_EDGE_MARGIN = 3.0
 
-# Soundtrack generation (Beatoven.ai)
-MUSIC_FILENAME            = "soundtrack.wav"
-MUSIC_REEL_FILENAME       = "highlights_with_music.mp4"
-DEFAULT_MUSIC_VOLUME      = 0.8    # music level in mix
-DEFAULT_ORIG_AUDIO_VOLUME = 0.15   # original clip audio level in mix
-BEATOVEN_API_BASE         = "https://public-api.beatoven.ai"
-BEATOVEN_POLL_INTERVAL    = 10     # seconds between status checks
-
 # ---------------------------------------------------------------------------
 
 
@@ -572,11 +564,7 @@ def _frame_to_dict(f: FrameScore) -> dict:
     }
 
 
-def save_json_report(
-    results: list[ClipResult],
-    output_path: Path,
-    music_prompt: str | None = None,
-) -> None:
+def save_json_report(results: list[ClipResult], output_path: Path) -> None:
     clips = [
         {
             "clip": str(r.clip.path),
@@ -589,26 +577,18 @@ def save_json_report(
         }
         for r in results
     ]
-    data: dict = {"clips": clips}
-    if music_prompt:
-        data["music_prompt"] = music_prompt
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as fh:
-        json.dump(data, fh, indent=2)
+        json.dump({"clips": clips}, fh, indent=2)
     logging.info(f"Report saved to {output_path}")
 
 
-def load_results_from_json(report_path: Path) -> tuple[list[ClipResult], str | None]:
+def load_results_from_json(report_path: Path) -> list[ClipResult]:
     with open(report_path) as fh:
         data = json.load(fh)
 
     # Support both old format (bare list) and new format (dict with "clips" key)
-    if isinstance(data, list):
-        entries = data
-        music_prompt = None
-    else:
-        entries = data.get("clips", [])
-        music_prompt = data.get("music_prompt")
+    entries = data if isinstance(data, list) else data.get("clips", [])
 
     results = []
     for i, entry in enumerate(entries):
@@ -645,7 +625,7 @@ def load_results_from_json(report_path: Path) -> tuple[list[ClipResult], str | N
             frame_scores=frame_scores,
         ))
 
-    return results, music_prompt
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -1033,153 +1013,6 @@ def _run_analysis(
 
 
 # ---------------------------------------------------------------------------
-# Soundtrack
-# ---------------------------------------------------------------------------
-
-MUSIC_PROMPT_MODEL = "claude-haiku-4-5-20251001"
-
-
-def _generate_music_prompt_via_claude(
-    results: list[ClipResult],
-    client: anthropic.Anthropic,
-) -> str:
-    top_descriptions = sorted(
-        [
-            (f.combined, f.description)
-            for r in results
-            for f in r.best_moments[:2]
-            if f.description
-        ],
-        reverse=True,
-    )[:6]
-
-    descriptions = "\n".join(
-        f"- {desc} ({score:.1f})" for score, desc in top_descriptions
-    )
-    response = client.messages.create(
-        model=MUSIC_PROMPT_MODEL,
-        max_tokens=80,
-        messages=[{
-            "role": "user",
-            "content": (
-                "Based on these descriptions of the best moments in a GoPro cycling highlight reel, "
-                "write a single music generation prompt (under 30 words) for Beatoven.ai. "
-                "The genre must be electronic, trance, or tropical house. "
-                "Colour the mood and energy from the scene descriptions — "
-                "e.g. stormy moorland → dark driving trance; sunny open road → bright tropical house. "
-                "Output only the prompt, nothing else.\n\n"
-                f"{descriptions}"
-            ),
-        }],
-    )
-    return response.content[0].text.strip()
-
-
-def _derive_music_prompt(results: list[ClipResult]) -> str:
-    avg_composite = sum(r.composite_score for r in results) / len(results)
-    avg_motion    = sum(r.motion_score    for r in results) / len(results)
-    if avg_composite >= 7.5 and avg_motion >= 6.5:
-        return "trance, driving bassline, euphoric build and drop, high energy"
-    if avg_composite >= 6.5 or avg_motion >= 6.0:
-        return "tropical house, uplifting melody, smooth groove, energetic outdoor feel"
-    return "electronic, laid-back sunny vibe, warm chords, relaxed pace"
-
-
-def _generate_soundtrack(
-    duration: float,
-    prompt: str,
-    api_key: str,
-    output_path: Path,
-) -> None:
-    import urllib.request
-    import urllib.error
-
-    duration_secs = int(duration)
-    full_prompt = f"{prompt}, {duration_secs} seconds"
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
-    # 1. Submit composition request
-    body = json.dumps({"prompt": {"text": full_prompt}, "format": "wav"}).encode()
-    req = urllib.request.Request(
-        f"{BEATOVEN_API_BASE}/api/v1/tracks/compose",
-        data=body, headers=headers, method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req) as resp:
-            task_id = json.loads(resp.read())["task_id"]
-    except urllib.error.HTTPError as exc:
-        logging.error(f"Beatoven compose request failed: {exc.code} {exc.reason}")
-        sys.exit(1)
-
-    logging.info(f"Beatoven task {task_id} — waiting for composition...")
-
-    # 2. Poll until composed
-    import time
-    BEATOVEN_MAX_RETRIES = 3
-    status_url = f"{BEATOVEN_API_BASE}/api/v1/tasks/{task_id}"
-    while True:
-        time.sleep(BEATOVEN_POLL_INTERVAL)
-        for attempt in range(1, BEATOVEN_MAX_RETRIES + 1):
-            try:
-                req = urllib.request.Request(status_url, headers={"Authorization": f"Bearer {api_key}"})
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    data = json.loads(resp.read())
-                break
-            except Exception as exc:
-                if attempt == BEATOVEN_MAX_RETRIES:
-                    logging.error(f"Beatoven status check failed after {BEATOVEN_MAX_RETRIES} attempts: {exc}")
-                    sys.exit(1)
-                logging.warning(f"Beatoven status check attempt {attempt} failed: {exc} — retrying")
-                time.sleep(5)
-        status = data.get("status")
-        if status == "composed":
-            track_url = data["meta"]["track_url"]
-            break
-        if status not in ("composing", "running", "started"):
-            logging.error(f"Beatoven composition failed with status: {status}")
-            sys.exit(1)
-
-    # 3. Download wav
-    logging.info("Downloading soundtrack...")
-    urllib.request.urlretrieve(track_url, output_path)
-    logging.info(f"Soundtrack saved: {output_path.name}")
-
-
-def _mix_soundtrack(
-    video_path: Path,
-    audio_path: Path,
-    output_path: Path,
-    music_vol: float,
-    orig_vol: float,
-) -> None:
-    filter_complex = (
-        f"[0:a]volume={orig_vol}[va];"
-        f"[1:a]volume={music_vol}[ma];"
-        f"[va][ma]amix=inputs=2:duration=first[aout]"
-    )
-    cmd = [
-        "ffmpeg", "-v", "quiet",
-        "-i", str(video_path),
-        "-i", str(audio_path),
-        "-filter_complex", filter_complex,
-        "-map", "0:v",
-        "-map", "[aout]",
-        "-c:v", "copy",
-        "-c:a", "aac", "-b:a", "192k",
-        "-y", str(output_path),
-    ]
-    result = subprocess.run(cmd)
-    if result.returncode != 0:
-        logging.error("Audio mix failed")
-        sys.exit(1)
-    logging.info(f"Mixed reel: {output_path.name}")
-
-
-# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1223,17 +1056,6 @@ def main() -> None:
                         help="Transition between clips: none (hard cut, lossless), fade, fadeblack (default: none)")
     parser.add_argument("--transition-duration", type=float, default=0.5, metavar="SECS",
                         help="Duration of each transition in seconds (default: 0.5)")
-    music = parser.add_argument_group("soundtrack (requires Beatoven.ai API key)")
-    music.add_argument("--music", action="store_true",
-                       help="Generate and mix an AI soundtrack via Beatoven.ai")
-    music.add_argument("--music-prompt", type=str, default=None, metavar="TEXT",
-                       help="Music generation prompt (default: Claude-generated from frame descriptions, stored in report.json)")
-    music.add_argument("--music-api-key", type=str, default=None, metavar="KEY",
-                       help="Beatoven.ai API key (default: BEATOVEN_API_KEY env var)")
-    music.add_argument("--music-volume", type=float, default=DEFAULT_MUSIC_VOLUME, metavar="LEVEL",
-                       help=f"Music level in the mix, 0.0–1.0 (default: {DEFAULT_MUSIC_VOLUME})")
-    music.add_argument("--regen-music-prompt", action="store_true",
-                       help="Re-generate the Claude music prompt from existing frame descriptions and update report.json")
     parser.add_argument("--import-photos", action="store_true",
                         help="Import generated highlight clips into Apple Photos after generation")
     parser.add_argument("--verbose", "-v", action="store_true")
@@ -1254,7 +1076,7 @@ def main() -> None:
             logging.error(f"Report not found: {args.from_report}")
             sys.exit(1)
         logging.info(f"Loading results from {args.from_report}")
-        results, stored_music_prompt = load_results_from_json(args.from_report)
+        results = load_results_from_json(args.from_report)
     else:
         if not args.directory:
             parser.error("directory is required unless --from-report is specified")
@@ -1281,7 +1103,6 @@ def main() -> None:
             client = _make_api_client(args.api_key)
 
         results = _run_analysis(clips, client, system_prompt)
-        stored_music_prompt = None
 
     results.sort(key=lambda r: r.composite_score, reverse=True)
 
@@ -1295,18 +1116,7 @@ def main() -> None:
 
     output_dir = args.output or run_dir
 
-    # Generate (or regenerate) music prompt via Claude
-    auto_gen = not args.from_report and not args.no_vision
-    if args.regen_music_prompt or auto_gen:
-        if client is None:
-            client = _make_api_client(args.api_key)
-        try:
-            stored_music_prompt = _generate_music_prompt_via_claude(results, client)
-            logging.info(f"Music prompt: {stored_music_prompt!r}")
-        except Exception as exc:
-            logging.warning(f"Could not generate music prompt via Claude: {exc}")
-
-    save_json_report(results, output_dir / REPORT_FILENAME, music_prompt=stored_music_prompt)
+    save_json_report(results, output_dir / REPORT_FILENAME)
 
     if args.copy_to:
         _copy_clips(results, args.copy_to)
@@ -1331,44 +1141,8 @@ def main() -> None:
         num_clips=args.clips,
     )
 
-    photos_import: list[Path] = output_reels  # default: import plain reels
-
-    if args.music:
-        if args.clips > 1:
-            logging.warning("[MUSIC]  --music is not supported with --clips > 1 — skipping")
-        elif output_reels:
-            reel_path = output_reels[0]
-            reel_info = probe_clip(reel_path)
-            if reel_info is None:
-                logging.warning("Could not probe reel duration — skipping music generation")
-            else:
-                beatoven_key = args.music_api_key or os.environ.get("BEATOVEN_API_KEY")
-                if not beatoven_key:
-                    logging.error(
-                        "No Beatoven API key found. "
-                        "Set BEATOVEN_API_KEY or pass --music-api-key."
-                    )
-                    sys.exit(1)
-                music_prompt = (
-                    args.music_prompt
-                    or stored_music_prompt
-                    or _derive_music_prompt(results)
-                )
-                logging.info(f"Music prompt: {music_prompt!r}")
-                soundtrack_path = output_dir / MUSIC_FILENAME
-                _generate_soundtrack(
-                    reel_info.duration, music_prompt, beatoven_key, soundtrack_path
-                )
-                mixed_reel = output_dir / MUSIC_REEL_FILENAME
-                _mix_soundtrack(
-                    reel_path, soundtrack_path,
-                    mixed_reel,
-                    args.music_volume, DEFAULT_ORIG_AUDIO_VOLUME,
-                )
-                photos_import = [mixed_reel]
-
     if args.import_photos:
-        _import_to_photos(photos_import)
+        _import_to_photos(output_reels)
 
 
 if __name__ == "__main__":
