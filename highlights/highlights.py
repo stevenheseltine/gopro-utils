@@ -67,6 +67,9 @@ MAX_REEL_DURATION       = 30.0  # cap per output clip in seconds (Strava limit)
 # Seconds kept clear at each end of a clip when selecting sample timestamps
 CLIP_EDGE_MARGIN = 3.0
 
+# Neutral score used when no data is available (mid-range, doesn't bias ranking)
+NEUTRAL_SCORE = 5.0
+
 # ---------------------------------------------------------------------------
 
 
@@ -107,7 +110,7 @@ class ClipResult:
     @property
     def motion_score(self) -> float:
         if self.motion_scores is None or len(self.motion_scores) == 0:
-            return 5.0
+            return NEUTRAL_SCORE
         arr = self.motion_scores
         mean = float(np.mean(arr))
         std = float(np.std(arr))
@@ -390,12 +393,15 @@ def _load_prompt(path: Path) -> str:
 
 def _parse_score_response(text: str) -> list[dict]:
     text = text.strip()
+    # Strip markdown code fence if present
     if text.startswith("```"):
         parts = text.split("```")
         text = parts[1] if len(parts) > 1 else text
-        if text.startswith("json"):
-            text = text[4:]
-    parsed = json.loads(text)
+        text = text.removeprefix("json").strip()
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Could not parse vision API response as JSON: {exc}\nResponse: {text[:200]}") from exc
     if isinstance(parsed, dict):
         parsed = [parsed]
     return parsed
@@ -456,7 +462,7 @@ def score_frames_batch(
     except Exception as exc:
         logging.warning(f"Vision scoring failed: {exc}")
         return [
-            FrameScore(timestamp=ts, visual=5.0, action=5.0, composition=5.0, description="")
+            FrameScore(timestamp=ts, visual=NEUTRAL_SCORE, action=NEUTRAL_SCORE, composition=NEUTRAL_SCORE, description="")
             for ts, _ in batch
         ]
 
@@ -486,7 +492,7 @@ def analyse_clip(
         else:
             logging.info("  Motion: GPMF stream found but no ACCL/GYRO samples — using neutral score")
     else:
-        logging.info("  Motion: no GPMF stream found — using neutral score (5.0)")
+        logging.info(f"  Motion: no GPMF stream found — using neutral score ({NEUTRAL_SCORE})")
 
     # Select and extract frames
     timestamps = select_timestamps(clip, motion_scores)
@@ -509,7 +515,7 @@ def analyse_clip(
             logging.info(f"  Scored frames {i+1}–{end_idx}/{len(frame_pairs)}")
     else:
         frame_scores = [
-            FrameScore(timestamp=ts, visual=5.0, action=5.0, composition=5.0, description="")
+            FrameScore(timestamp=ts, visual=NEUTRAL_SCORE, action=NEUTRAL_SCORE, composition=NEUTRAL_SCORE, description="")
             for ts, _ in frame_pairs
         ]
 
@@ -658,14 +664,14 @@ def select_edit_segments(
             continue
 
         # Build and sort windows by start time; carry the frame score through merges
-        windows: list[list] = []  # [start, end, score]
+        windows: list[list[float]] = []  # [start, end, score]
         for f in qualifying:
             start = max(0.0, f.timestamp - half_width)
             end   = min(r.clip.duration, f.timestamp + half_width)
             windows.append([start, end, f.combined])
         windows.sort()
 
-        merged: list[list] = []
+        merged: list[list[float]] = []
         for start, end, score in windows:
             if merged and start <= merged[-1][1] + merge_gap:
                 merged[-1][1] = max(merged[-1][1], end)
@@ -799,7 +805,7 @@ def _concat_xfade(
     durations = [_segment_duration(p) for p in segment_paths]
 
     # Warn if any segment is too short for the transition
-    for i, (_, d) in enumerate(zip(segment_paths, durations)):
+    for i, d in enumerate(durations):
         if d <= fade_dur * 2:
             logging.warning(
                 f"[EDIT]   Segment {i+1} is {d:.1f}s — shorter than 2× transition "
@@ -1123,8 +1129,8 @@ def main() -> None:
 
     if args.no_vision:
         logging.warning(
-            "[EDIT]   --no-vision was used so all frame scores are 5.0. "
-            "Pass --min-score below 5.0 or run without --no-vision for "
+            f"[EDIT]   --no-vision was used so all frame scores are {NEUTRAL_SCORE}. "
+            f"Pass --min-score below {NEUTRAL_SCORE} or run without --no-vision for "
             "meaningful highlight selection."
         )
 
