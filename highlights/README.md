@@ -257,7 +257,7 @@ options:
   --transition-duration S   Length of each transition in seconds (default: 0.5)
   --music                   Generate and mix an AI soundtrack using MusicGen
   --music-prompt TEXT       Music generation prompt (default: Claude-generated, stored in report.json)
-  --music-model SIZE        MusicGen model: small (~300MB), medium (~1.5GB), large (~3.3GB)
+  --music-model SIZE        MusicGen model: small (~2.2GB), medium (~3.5GB), large (~5GB)
   --music-volume LEVEL      Music level in the mix, 0.0–1.0 (default: 0.8)
   --verbose, -v             Show debug-level detail
 ```
@@ -446,7 +446,7 @@ Output: `highlights_with_music.mp4` alongside the existing `highlights.mp4`. The
 |---|---|---|
 | `--music` | off | Enable soundtrack generation |
 | `--music-prompt TEXT` | auto | Override the derived mood prompt |
-| `--music-model` | `small` | `small` (~300MB), `medium` (~1.5GB), `large` (~3.3GB) |
+| `--music-model` | `small` | `small` (~2.2GB), `medium` (~3.5GB), `large` (~5GB) |
 | `--music-volume` | `0.8` | Music level in the mix (original audio ducked to 0.15) |
 
 Models are downloaded on first use to `~/.cache/huggingface/hub/`. Generation time on CPU: roughly 1–2× realtime for `small` (a 2 min 30 reel takes ~3–5 min to generate).
