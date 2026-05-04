@@ -39,8 +39,10 @@ PRESET: Path | None = None  # e.g. Path.home() / "Movies" / "my_preset.gyroflow"
 
 # GyroFlow output parameters — override codec/bitrate here if needed.
 # See: gyroflow --help for the full JSON schema.
-# Example: '{"codec": "H.265/HEVC", "bitrate": 150, "use_gpu": true, "audio": true}'
-OUT_PARAMS: str | None = None
+OUT_PARAMS: str | None = '{"codec": "H.264/AVC", "use_gpu": true, "audio": true}'
+
+# GPU rendering device passed to gyroflow -r. Options: "intel", "amd", "nvidia", "apple m"
+RENDERING_DEVICE: str | None = "intel"
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mts", ".m2ts"}
 
@@ -175,6 +177,8 @@ def build_command(src: Path) -> list[str]:
         cmd += ["--preset", str(PRESET)]
     if OUT_PARAMS:
         cmd += ["--out-params", OUT_PARAMS]
+    if RENDERING_DEVICE:
+        cmd += ["-r", RENDERING_DEVICE]
     return cmd
 
 

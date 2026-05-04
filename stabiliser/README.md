@@ -165,7 +165,8 @@ All config is at the top of `stabilise_watch.py`:
 | `GYROFLOW` | `/Applications/Gyroflow.app/...` | Path to the GyroFlow binary |
 | `OUTPUT_SUFFIX` | `_stabilized` | Appended to output filenames |
 | `PRESET` | `None` | Path to a `.gyroflow` preset file |
-| `OUT_PARAMS` | `None` | Override codec/bitrate (see below) |
+| `OUT_PARAMS` | `{"codec": "H.264/AVC", "use_gpu": true, "audio": true}` | GyroFlow output parameters |
+| `RENDERING_DEVICE` | `"intel"` | GPU for rendering: `"intel"`, `"amd"`, `"nvidia"`, `"apple m"` |
 | `FILE_STABLE_SECONDS` | `10` | Seconds of no size change = copy complete |
 | `LOG_RETENTION_DAYS` | `14` | Days to keep `stabilise_*.log` files before pruning |
 
