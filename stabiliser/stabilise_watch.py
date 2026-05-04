@@ -14,6 +14,7 @@ import json
 import logging
 import re
 import shutil
+import platform
 import subprocess
 import sys
 import time
@@ -41,8 +42,9 @@ PRESET: Path | None = None  # e.g. Path.home() / "Movies" / "my_preset.gyroflow"
 # See: gyroflow --help for the full JSON schema.
 OUT_PARAMS: str | None = '{"codec": "H.264/AVC", "use_gpu": true, "audio": true}'
 
-# GPU rendering device passed to gyroflow -r. Options: "intel", "amd", "nvidia", "apple m"
-RENDERING_DEVICE: str | None = "intel"
+# GPU rendering device passed to gyroflow -r. Auto-detected from architecture.
+# Override if you have a discrete AMD or Nvidia GPU: "amd", "nvidia", "intel", "apple m"
+RENDERING_DEVICE: str | None = "apple m" if platform.machine() == "arm64" else "intel"
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mts", ".m2ts"}
 
