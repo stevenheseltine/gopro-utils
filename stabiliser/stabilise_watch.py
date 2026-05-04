@@ -48,6 +48,9 @@ VIDEO_EXTENSIONS = {".mp4", ".mov", ".mts", ".m2ts"}
 FILE_STABLE_SECONDS = 10
 SIZE_POLL_INTERVAL  = 2   # seconds between size checks during stability wait
 SCAN_INTERVAL       = 5   # seconds between directory scans
+
+# Log files older than this are deleted at startup
+LOG_RETENTION_DAYS = 14
 # ---------------------------------------------------------------------------
 
 
@@ -67,16 +70,25 @@ def make_dirs(base: Path) -> Dirs:
     )
 
 
+def _prune_logs(log_dir: Path, keep_days: int = LOG_RETENTION_DAYS) -> None:
+    cutoff = datetime.now().timestamp() - keep_days * 86400
+    for f in log_dir.glob("stabilise_*.log"):
+        if f.stat().st_mtime < cutoff:
+            f.unlink()
+            logging.info(f"[LOGS]   Pruned old log: {f.name}")
+
+
 def setup_logging(log_dir: Path) -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
+    _prune_logs(log_dir)
     log_file = log_dir / f"stabilise_{datetime.now().strftime('%Y%m%d')}.log"
+    handlers: list[logging.Handler] = [logging.FileHandler(log_file)]
+    if sys.stdout.isatty():
+        handlers.append(logging.StreamHandler(sys.stdout))
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s  %(levelname)-8s  %(message)s",
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler(sys.stdout),
-        ],
+        handlers=handlers,
     )
 
 

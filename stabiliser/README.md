@@ -19,9 +19,8 @@ Watches a staging directory for GoPro footage, stabilises each clip via GyroFlow
     2026-05-03/
   Failed/           ← clips that errored during processing
   Logs/
-    stabilise_20260503.log
-    launchd.log
-    launchd.error.log
+    stabilise_20260503.log   ← structured log, one file per day
+    launchd.error.log        ← stderr capture for crash diagnostics
 ```
 
 All directories are created automatically on first run.
@@ -104,7 +103,7 @@ The plist file lives at:
 ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
 ```
 
-It tells launchd three things: what to run, to start it at login (`RunAtLoad`), and to keep it alive if it exits (`KeepAlive`). stdout and stderr are written to the Logs directory rather than disappearing into the void.
+It tells launchd three things: what to run, to start it at login (`RunAtLoad`), and to keep it alive if it exits (`KeepAlive`). Structured logs go to the dated `stabilise_YYYYMMDD.log` files; stderr is captured to `launchd.error.log` for crash diagnostics. Log files older than 14 days are pruned automatically at startup.
 
 ### Installing or reinstalling
 
@@ -126,10 +125,10 @@ launchctl unload ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
 # Start the watcher
 launchctl load ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
 
-# Watch logs live
-tail -f ~/Movies/GoPro-Utils/Stabiliser/Logs/launchd.log
+# Watch today's log live
+tail -f ~/Movies/GoPro-Utils/Stabiliser/Logs/stabilise_$(date +%Y%m%d).log
 
-# Watch error logs live
+# Watch crash/error log
 tail -f ~/Movies/GoPro-Utils/Stabiliser/Logs/launchd.error.log
 ```
 
@@ -164,10 +163,11 @@ All config is at the top of `stabilise_watch.py`:
 | Variable | Default | Description |
 |---|---|---|
 | `GYROFLOW` | `/Applications/Gyroflow.app/...` | Path to the GyroFlow binary |
-| `OUTPUT_SUFFIX` | `_stabilised` | Appended to output filenames |
+| `OUTPUT_SUFFIX` | `_stabilized` | Appended to output filenames |
 | `PRESET` | `None` | Path to a `.gyroflow` preset file |
 | `OUT_PARAMS` | `None` | Override codec/bitrate (see below) |
 | `FILE_STABLE_SECONDS` | `10` | Seconds of no size change = copy complete |
+| `LOG_RETENTION_DAYS` | `14` | Days to keep `stabilise_*.log` files before pruning |
 
 ### Using a preset
 
