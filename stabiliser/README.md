@@ -6,8 +6,9 @@ Watches a staging directory for GoPro footage, stabilises each clip via GyroFlow
 
 1. Copy footage from your SD card into `~/Movies/GoPro-Utils/Stabiliser/Staging/`
 2. The watcher detects the new files, waits for the copy to finish, then passes each clip to GyroFlow
-3. Stabilised output is saved to `~/Movies/GoPro-Utils/Stabiliser/Processed/YYYY-MM-DD/` using the date embedded in the footage
-4. The original is deleted from Staging on success, or moved to `Failed/` if something goes wrong
+3. Source metadata tags (`creation_time`, `firmware`, etc.) are patched back onto the stabilised output — GyroFlow resets them to the processing time during rendering
+4. Stabilised output is saved to `~/Movies/GoPro-Utils/Stabiliser/Processed/YYYY-MM-DD/` using the recording date embedded in the original footage
+5. The original is deleted from Staging on success, or moved to `Failed/` if something goes wrong
 
 ## Directory structure
 
