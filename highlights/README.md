@@ -9,7 +9,7 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 3. **Frame sampling** — selects up to 24 frames per clip on a regular time grid, biased toward seconds where the motion profile peaks (so fast sections get denser coverage than idle riding)
 4. **Vision scoring** — sends each batch of frames to `claude-opus-4-7` with a cycling-specialist prompt; Claude scores visual appeal, action level, and composition for each frame. The system prompt is cached across batches to keep API costs low
 5. **Composite score** — combines the vision score (65%) and motion score (35%) into a single rank for each clip
-6. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel (capped at 3 minutes, best-scoring moments first) to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD-HH-MM-SS/`, and optionally exports all qualifying moments as individual segment files
+6. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel (capped at 2 min 30, best-scoring moments first) to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD-HH-MM-SS/`, and optionally exports all qualifying moments as individual segment files
 
 ## Requirements
 
@@ -89,7 +89,7 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/
 Every run automatically produces outputs in a timestamped directory under `~/Movies/GoPro-Utils/Highlights/`:
 
 1. A ranked table in the terminal
-2. `highlights.mp4` — a highlight reel capped at 3 minutes, built from the highest-scoring moments
+2. `highlights.mp4` — a highlight reel capped at 2 min 30, built from the highest-scoring moments
 3. `report.json` — a full JSON report with scores and frame-level detail
 4. Individual segment files (if `--segments` is passed) — every qualifying moment, uncapped
 
@@ -169,7 +169,7 @@ python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
 | `--min-score` | `6.5` | Minimum combined frame score (1–10) to include |
 | `--max-per-clip` | auto | Override max highlight moments per clip (default: ~1 per 75 seconds, capped at 5) |
 | `--highlight-window` | `5` | Seconds either side of each qualifying moment (10s clips) |
-| `--max-reel-duration` | `180` | Cap the reel at this many seconds — best-scoring moments are picked first |
+| `--max-reel-duration` | `150` | Cap the reel at this many seconds — best-scoring moments are picked first |
 | `--transition` | `none` | Transition style: `none` (hard cut, lossless), `fade` (crossfade), `fadeblack` |
 | `--transition-duration` | `0.5` | Length of each transition in seconds |
 
@@ -242,7 +242,7 @@ options:
   --min-score N             Minimum frame score to include in edit (default: 6.5)
   --max-per-clip N          Maximum highlight moments per clip (default: auto, ~1 per 75 sec)
   --highlight-window SECS   Seconds either side of each highlight moment (default: 5)
-  --max-reel-duration SECS  Cap reel length; best-scoring moments picked first (default: 180)
+  --max-reel-duration SECS  Cap reel length; best-scoring moments picked first (default: 150)
   --transition STYLE        Transition between clips: none, fade, fadeblack (default: none)
   --transition-duration S   Length of each transition in seconds (default: 0.5)
   --verbose, -v             Show debug-level detail
@@ -326,7 +326,7 @@ All tuning constants are at the top of `highlights.py`:
 | `HIGHLIGHT_HALF_WIDTH` | `5.0` | Seconds either side of each qualifying moment (10s clips) |
 | `HIGHLIGHT_MERGE_GAP` | `1.0` | Merge highlight windows within this many seconds of each other |
 | `MIN_HIGHLIGHT_SCORE` | `6.5` | Default minimum frame score for highlight selection |
-| `MAX_REEL_DURATION` | `180.0` | Reel cap in seconds; best-scoring moments fill it first |
+| `MAX_REEL_DURATION` | `150.0` | Reel cap in seconds; best-scoring moments fill it first |
 | `_auto_moments_cap()` | — | Controls the per-clip moment cap formula (~1 per 75 sec, cap 5); edit the function body to change the scaling, or pass `--max-per-clip` to override at runtime |
 
 ### Tuning the scoring prompt

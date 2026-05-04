@@ -62,7 +62,7 @@ W_MOTION = 0.35
 HIGHLIGHT_HALF_WIDTH    = 5.0   # seconds either side of each qualifying moment
 HIGHLIGHT_MERGE_GAP     = 1.0   # merge windows within this many seconds of each other
 MIN_HIGHLIGHT_SCORE     = 6.5   # default minimum combined frame score to include
-MAX_REEL_DURATION       = 180.0 # cap the assembled reel at this many seconds (3 min)
+MAX_REEL_DURATION       = 150.0 # cap the assembled reel at this many seconds (2 min 30)
 
 # Seconds kept clear at each end of a clip when selecting sample timestamps
 CLIP_EDGE_MARGIN = 3.0
