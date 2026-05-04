@@ -1158,7 +1158,7 @@ def main() -> None:
     music.add_argument("--music", action="store_true",
                        help="Generate and mix an AI soundtrack using MusicGen")
     music.add_argument("--music-prompt", type=str, default=None, metavar="TEXT",
-                       help="Music generation prompt (default: auto-derived from clip scores)")
+                       help="Music generation prompt (default: Claude-generated from frame descriptions, stored in report.json)")
     music.add_argument("--music-model", choices=["small", "medium", "large"],
                        default=DEFAULT_MUSIC_MODEL,
                        help="MusicGen model size: small (~300MB), medium (~1.5GB), large (~3.3GB) (default: small)")

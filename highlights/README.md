@@ -9,7 +9,8 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 3. **Frame sampling** — selects up to 24 frames per clip on a regular time grid, biased toward seconds where the motion profile peaks (so fast sections get denser coverage than slow sections)
 4. **Vision scoring** — sends each batch of frames to `claude-opus-4-7` with a cycling-specialist prompt; Claude scores visual appeal, action level, and composition for each frame. The system prompt is cached across batches to keep API costs low
 5. **Composite score** — combines the vision score (65%) and motion score (35%) into a single rank for each clip
-6. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel (capped at 2 min 30, best-scoring moments first) to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD-HH-MM-SS/`, and optionally exports all qualifying moments as individual segment files
+6. **Music prompt** — Claude Haiku synthesises the top frame descriptions into a MusicGen prompt and stores it in `report.json` for later use with `--music`
+7. **Output** — prints a ranked table to the terminal, saves a JSON report and a highlight reel (capped at 2 min 30, best-scoring moments first) to `~/Movies/GoPro-Utils/Highlights/YYYY-MM-DD-HH-MM-SS/`, and optionally exports all qualifying moments as individual segment files or mixes in an AI soundtrack
 
 ## Requirements
 
@@ -91,8 +92,9 @@ Every run automatically produces outputs in a timestamped directory under `~/Mov
 
 1. A ranked table in the terminal
 2. `highlights.mp4` — a highlight reel capped at 2 min 30, built from the highest-scoring moments
-3. `report.json` — a full JSON report with scores and frame-level detail
+3. `report.json` — a full JSON report with scores, frame-level detail, and a Claude-generated music prompt
 4. Individual segment files (if `--segments` is passed) — every qualifying moment, uncapped
+5. `highlights_with_music.mp4` + `soundtrack.wav` (if `--music` is passed) — reel with an AI-generated soundtrack mixed in
 
 Each run gets its own timestamped directory so previous outputs are never overwritten.
 
@@ -127,15 +129,22 @@ Copies the original (unmodified) source files.
 
 ### Re-run the edit without paying for API calls again
 
-After the first run, `report.json` contains all the scoring data. Use `--from-report` to regenerate the highlight reel from it — useful for tuning `--min-score`, `--highlight-window`, or `--transition` without spending API credits:
+After the first run, `report.json` contains all the scoring data. Use `--from-report` to regenerate the highlight reel from it — useful for tuning `--min-score`, `--highlight-window`, `--transition`, `--max-reel-duration`, or adding a soundtrack without spending API credits:
 
 ```bash
 # Tighten the threshold and add a crossfade
-python3 ~/Dev/gopro-utils/highlights/highlights.py ~/Movies/GoPro/ \
+python3 ~/Dev/gopro-utils/highlights/highlights.py \
   --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04-14-30-00/report.json \
   --min-score 7.5 \
   --transition fade
+
+# Add a soundtrack to an existing reel
+python3 ~/Dev/gopro-utils/highlights/highlights.py \
+  --from-report ~/Movies/GoPro-Utils/Highlights/2026-05-04-14-30-00/report.json \
+  --music
 ```
+
+The Claude-generated music prompt is stored in `report.json` and reused automatically — no extra API call.
 
 ### Export individual segments for editing
 
@@ -247,7 +256,7 @@ options:
   --transition STYLE        Transition between clips: none, fade, fadeblack (default: none)
   --transition-duration S   Length of each transition in seconds (default: 0.5)
   --music                   Generate and mix an AI soundtrack using MusicGen
-  --music-prompt TEXT       Music generation prompt (default: auto-derived from scores)
+  --music-prompt TEXT       Music generation prompt (default: Claude-generated, stored in report.json)
   --music-model SIZE        MusicGen model: small (~300MB), medium (~1.5GB), large (~3.3GB)
   --music-volume LEVEL      Music level in the mix, 0.0–1.0 (default: 0.8)
   --verbose, -v             Show debug-level detail
