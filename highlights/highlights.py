@@ -67,6 +67,13 @@ MAX_REEL_DURATION       = 150.0 # cap the assembled reel at this many seconds (2
 # Seconds kept clear at each end of a clip when selecting sample timestamps
 CLIP_EDGE_MARGIN = 3.0
 
+# Soundtrack generation (MusicGen)
+MUSIC_FILENAME           = "soundtrack.wav"
+MUSIC_REEL_FILENAME      = "highlights_with_music.mp4"
+DEFAULT_MUSIC_MODEL      = "small"
+DEFAULT_MUSIC_VOLUME     = 0.8    # music level in mix
+DEFAULT_ORIG_AUDIO_VOLUME = 0.15  # original clip audio level in mix
+
 # ---------------------------------------------------------------------------
 
 
@@ -968,6 +975,94 @@ def _run_analysis(
 
 
 # ---------------------------------------------------------------------------
+# Soundtrack
+# ---------------------------------------------------------------------------
+
+_MUSIC_MODEL_SIZES = {"small": "300 MB", "medium": "1.5 GB", "large": "3.3 GB"}
+
+
+def _derive_music_prompt(results: list[ClipResult]) -> str:
+    avg_composite = sum(r.composite_score for r in results) / len(results)
+    avg_motion    = sum(r.motion_score    for r in results) / len(results)
+    if avg_composite >= 7.5 and avg_motion >= 6.5:
+        return "upbeat energetic action sports music, driving rhythm, fast-paced, exciting"
+    if avg_composite >= 6.5 or avg_motion >= 6.0:
+        return "cinematic adventure music, inspiring, moderate tempo, outdoor"
+    return "ambient atmospheric music, calm, peaceful, scenic outdoor"
+
+
+_MUSIC_GEN_HELPER = Path(__file__).parent / "_music_gen.py"
+_MUSIC_PYTHON_CANDIDATES = ["python3.12", "python3.11", "python3"]
+
+
+def _find_music_python() -> str | None:
+    for py in _MUSIC_PYTHON_CANDIDATES:
+        result = subprocess.run(
+            [py, "-c", "import torch; from transformers import MusicgenForConditionalGeneration"],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            return py
+    return None
+
+
+def _generate_soundtrack(
+    duration: float,
+    prompt: str,
+    model_size: str,
+    output_path: Path,
+) -> None:
+    py = _find_music_python()
+    if py is None:
+        logging.error(
+            "No Python with torch + transformers found. "
+            "See highlights/README.md — Soundtrack section for install instructions."
+        )
+        sys.exit(1)
+
+    size_label = _MUSIC_MODEL_SIZES.get(model_size, "?")
+    logging.info(f"MusicGen-{model_size} ({size_label}) via {py}")
+
+    result = subprocess.run(
+        [py, str(_MUSIC_GEN_HELPER), str(duration), prompt, model_size, str(output_path)],
+    )
+    if result.returncode != 0:
+        logging.error("Music generation failed")
+        sys.exit(1)
+    logging.info(f"Soundtrack saved: {output_path.name}")
+
+
+def _mix_soundtrack(
+    video_path: Path,
+    audio_path: Path,
+    output_path: Path,
+    music_vol: float,
+    orig_vol: float,
+) -> None:
+    filter_complex = (
+        f"[0:a]volume={orig_vol}[va];"
+        f"[1:a]volume={music_vol}[ma];"
+        f"[va][ma]amix=inputs=2:duration=first[aout]"
+    )
+    cmd = [
+        "ffmpeg", "-v", "quiet",
+        "-i", str(video_path),
+        "-i", str(audio_path),
+        "-filter_complex", filter_complex,
+        "-map", "0:v",
+        "-map", "[aout]",
+        "-c:v", "copy",
+        "-c:a", "aac", "-b:a", "192k",
+        "-y", str(output_path),
+    ]
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        logging.error("Audio mix failed")
+        sys.exit(1)
+    logging.info(f"Mixed reel: {output_path.name}")
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1010,6 +1105,16 @@ def main() -> None:
                         help="Transition between clips: none (hard cut, lossless), fade, fadeblack (default: none)")
     parser.add_argument("--transition-duration", type=float, default=0.5, metavar="SECS",
                         help="Duration of each transition in seconds (default: 0.5)")
+    music = parser.add_argument_group("soundtrack (requires audiocraft)")
+    music.add_argument("--music", action="store_true",
+                       help="Generate and mix an AI soundtrack using MusicGen")
+    music.add_argument("--music-prompt", type=str, default=None, metavar="TEXT",
+                       help="Music generation prompt (default: auto-derived from clip scores)")
+    music.add_argument("--music-model", choices=["small", "medium", "large"],
+                       default=DEFAULT_MUSIC_MODEL,
+                       help="MusicGen model size: small (~300MB), medium (~1.5GB), large (~3.3GB) (default: small)")
+    music.add_argument("--music-volume", type=float, default=DEFAULT_MUSIC_VOLUME, metavar="LEVEL",
+                       help=f"Music level in the mix, 0.0–1.0 (default: {DEFAULT_MUSIC_VOLUME})")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -1090,6 +1195,27 @@ def main() -> None:
         transition_duration=args.transition_duration,
         max_reel_duration=args.max_reel_duration,
     )
+
+    if args.music:
+        reel_path = output_dir / REEL_FILENAME
+        if not reel_path.exists():
+            logging.warning("No highlight reel found — skipping music generation")
+        else:
+            reel_info = probe_clip(reel_path)
+            if reel_info is None:
+                logging.warning("Could not probe reel duration — skipping music generation")
+            else:
+                music_prompt = args.music_prompt or _derive_music_prompt(results)
+                logging.info(f"Music prompt: {music_prompt!r}")
+                soundtrack_path = output_dir / MUSIC_FILENAME
+                _generate_soundtrack(
+                    reel_info.duration, music_prompt, args.music_model, soundtrack_path
+                )
+                _mix_soundtrack(
+                    reel_path, soundtrack_path,
+                    output_dir / MUSIC_REEL_FILENAME,
+                    args.music_volume, DEFAULT_ORIG_AUDIO_VOLUME,
+                )
 
 
 if __name__ == "__main__":
