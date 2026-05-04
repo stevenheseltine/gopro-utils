@@ -70,13 +70,15 @@ brew install --cask gyroflow
 
 This installs GyroFlow to `/Applications/Gyroflow.app`.
 
-### 4. Register the LaunchAgent
+### 4. Install the LaunchAgent
 
 ```bash
-launchctl load ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
+bash ~/Dev/gopro-utils/stabiliser/install.sh
 ```
 
-The watcher will start immediately and on every login from this point.
+The script detects your Python 3.13 path and repo location, writes the plist to `~/Library/LaunchAgents/`, and starts the watcher immediately. It also runs automatically on every login from this point.
+
+To reinstall after moving the repo or upgrading Python, just run it again — it unloads the old agent before reloading.
 
 ## Running
 
@@ -106,11 +108,10 @@ It tells launchd three things: what to run, to start it at login (`RunAtLoad`), 
 
 ### Installing or reinstalling
 
-If you move the script or change the plist, unload first, then reload:
+Re-run the install script — it handles unload/reload automatically:
 
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
-launchctl load ~/Library/LaunchAgents/com.$(whoami).stabiliser.plist
+bash ~/Dev/gopro-utils/stabiliser/install.sh
 ```
 
 ### Day-to-day commands
