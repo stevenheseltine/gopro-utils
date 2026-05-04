@@ -41,7 +41,7 @@ The watcher runs as a macOS LaunchAgent: drop footage into `~/Movies/GoPro-Utils
 Combines two scoring signals:
 
 - **Motion score** — extracted from the GPMF gyroscope and accelerometer data embedded in the clip (or the `.gpmf` sidecar written by the Stabiliser). Rewards dynamic, varied riding over flat steady-state footage.
-- **Vision score** — sampled frames are sent to `claude-opus-4-7` and scored on visual appeal, action intensity, and composition, using the same two-stage quality-gate and interestingness logic that GoPro Quik uses internally.
+- **Vision score** — sampled frames are sent to `claude-opus-4-7` and scored on visual appeal, action intensity, and composition, using a two-stage quality-gate and interestingness approach modelled on how GoPro Quik is known to work.
 
 The combined score ranks every clip and identifies the best moments within each one. The tool then cuts a highlight reel automatically — either as individual segments for iMovie or as a single concatenated file.
 

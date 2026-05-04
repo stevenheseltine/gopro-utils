@@ -383,19 +383,19 @@ def extract_frame(path: Path, timestamp: float, tmpdir: Path) -> Path | None:
 
 SYSTEM_PROMPT = """\
 You are evaluating GoPro helmet-cam cycling footage for an automatic \
-highlight reel. Use the same two-stage logic that GoPro Quik uses:
+highlight reel. Use a two-stage approach modelled on how GoPro Quik is \
+known to work:
 
 Stage 1 — quality gate: low scores for technically poor footage (shaky blur \
 from camera movement, over- or under-exposed, obstructed lens).
 
-Stage 2 — interestingness: high scores for the moments Quik prioritises — \
-activity peaks (speed, G-force, cornering), social signals (other riders \
-close or interacting), and scene novelty (something visually distinct from \
-generic open road).
+Stage 2 — interestingness: high scores for activity peaks (speed, G-force, \
+cornering), social signals (other riders close or interacting), and scene \
+novelty (something visually distinct from generic open road).
 
 Score each frame on three dimensions from 1–10. Use the full range. \
-Frames that would survive Quik's quality gate but have nothing interesting \
-belong in the 5–6 band. Reserve 1–4 for footage Quik would reject outright.
+Footage that passes the quality gate but has nothing interesting belongs \
+in the 5–6 band. Reserve 1–4 for technically poor footage.
 
 visual — technical quality and scene interest:
   9–10  Sharp and well-exposed with genuinely compelling scenery: dramatic \
@@ -407,8 +407,7 @@ interesting road environment (stone walls, tree canopy, open valley)
   1–4   Quik would reject: camera-shake blur, over- or under-exposed, flat \
 urban road, obscured or dirty lens
 
-action — activity intensity and interaction (mirrors Quik's G-force/speed \
-spike detection):
+action — activity intensity and interaction:
   9–10  Speed and effort peaks: high-speed descent with background blur or \
 visible lean angle, sprint (rider low and aggressive), tight technical corner, \
 riders passing close to the camera, a group of cyclists at pace together
@@ -418,8 +417,7 @@ lean, two or more other riders close in frame, evident downhill momentum
   1–4   Stationary, very slow, waiting at a junction, empty road with no \
 rider visible — no activity signal
 
-composition — framing and visual structure (mirrors Quik's rule-of-thirds \
-subject tracking):
+composition — framing and visual structure:
   9–10  Another rider used as a clear foreground subject; strong leading lines \
 (curving road, converging stone walls, tree-tunnel); dramatic sky balanced \
 with road; real depth and layering in the scene
