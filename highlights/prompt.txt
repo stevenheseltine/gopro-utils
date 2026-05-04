@@ -13,7 +13,7 @@ visual — technical quality and scene interest:
   1–4   Technically poor: camera-shake blur, over- or under-exposed, flat urban road, obscured or dirty lens
 
 action — activity intensity and interaction:
-  9–10  Speed and effort peaks: high-speed descent with background blur or visible lean angle, sprint (rider low and aggressive), tight technical corner, riders passing close to the camera, a group of cyclists at pace together
+  9–10  Speed and effort peaks: high-speed descent with background blur or visible lean angle, sprint (rider low and aggressive), tight technical corner, riders passing close to the camera, a group of cyclists at pace together, moutain top finishes, cresting summits
   7–8   Active effort visible — climbing out of the saddle, clear cornering lean, two or more other riders close in frame, evident downhill momentum
   5–6   Solo rider at a steady moderate pace
   1–4   Stationary, very slow, waiting at a junction, empty road with no rider visible — no activity signal
