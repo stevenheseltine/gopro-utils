@@ -29,7 +29,7 @@ The only external service used is the [Anthropic API](https://console.anthropic.
 
 GoPro embeds raw gyroscope and accelerometer readings in every clip as GPMF telemetry. GyroFlow reads this data and computes the stabilisation transform in post, producing results comparable to in-camera HyperSmooth — without needing a subscription or internet connection.
 
-The watcher runs as a macOS LaunchAgent: drop footage into `~/Movies/GoPro-Utils/Stabiliser/Staging/` and it is automatically stabilised and filed to `~/Movies/GoPro-Utils/Stabiliser/Processed/YYYY-MM-DD/`. It also saves a `.gpmf` sidecar file alongside each stabilised clip before deleting the original, preserving the motion data for the analyser.
+The watcher runs as a macOS LaunchAgent: drop footage into `~/Movies/GoPro-Utils/Stabiliser/Staging/` and it is automatically stabilised and filed to `~/Movies/GoPro-Utils/Stabiliser/Processed/YYYY-MM-DD/`. It also saves a `.gpmf` sidecar file alongside each stabilised clip before deleting the original, preserving the motion data for subsequent highlights analysis.
 
 → [Full documentation](stabiliser/README.md)
 
