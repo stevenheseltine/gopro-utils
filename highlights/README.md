@@ -4,7 +4,7 @@ Scans a directory of GoPro cycling footage and automatically identifies the most
 
 ## How it works
 
-1. **Probe** — reads duration, resolution, and frame rate from every MP4/MOV in the target directory via ffprobe
+1. **Probe** — reads duration, resolution, frame rate, and recording date from every MP4/MOV in the target directory via ffprobe
 2. **Motion profile** — extracts the GoPro GPMF telemetry track (gyroscope + accelerometer) and builds a per-second motion magnitude curve for each clip
 3. **Frame sampling** — selects up to 24 frames per clip on a regular time grid, biased toward seconds where the motion profile peaks (so fast sections get denser coverage than slow sections)
 4. **Vision scoring** — sends each batch of frames to `claude-opus-4-7` with a cycling-specialist prompt; Claude scores visual appeal, action level, and composition for each frame. The system prompt is cached across batches to keep API costs low
@@ -450,7 +450,7 @@ Either way, the system prompt cache still applies across all batches in a single
 }
 ```
 
-`best_moments` contains the top 5 frames by combined score. `frames` contains every sampled frame, which is what `--from-report` uses to re-run highlight selection with different thresholds. Old reports with a `music_prompt` field are still loaded without error — that field is simply ignored.
+`best_moments` contains the top 5 frames by combined score. `frames` contains every sampled frame, which is what `--from-report` uses to re-run highlight selection with different thresholds.
 
 ## Limitations
 

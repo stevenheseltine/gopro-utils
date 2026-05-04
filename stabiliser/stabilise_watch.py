@@ -166,6 +166,24 @@ def build_command(src: Path) -> list[str]:
     return cmd
 
 
+def _date_from_mp4_metadata(path: Path) -> date | None:
+    """Read creation_time from the MP4 container — embedded by the camera at record time."""
+    try:
+        result = subprocess.run(
+            [FFPROBE, "-v", "quiet", "-print_format", "json", "-show_format", str(path)],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            return None
+        fmt = json.loads(result.stdout).get("format", {})
+        creation_time = fmt.get("tags", {}).get("creation_time", "")
+        if creation_time:
+            return date.fromisoformat(creation_time[:10])
+    except Exception:
+        pass
+    return None
+
+
 def _date_from_spotlight(path: Path) -> date | None:
     try:
         result = subprocess.run(
@@ -196,7 +214,8 @@ def _date_from_mtime(path: Path) -> date:
 def get_capture_date(path: Path) -> date:
     """Return the recording date from MP4 metadata, falling back to filesystem dates."""
     return (
-        _date_from_spotlight(path)
+        _date_from_mp4_metadata(path)
+        or _date_from_spotlight(path)
         or _date_from_birthtime(path)
         or _date_from_mtime(path)
     )

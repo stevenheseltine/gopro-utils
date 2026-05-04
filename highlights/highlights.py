@@ -25,7 +25,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import NamedTuple
 
@@ -76,10 +76,11 @@ NEUTRAL_SCORE = 5.0
 @dataclass
 class ClipInfo:
     path: Path
-    duration: float   # seconds
+    duration: float         # seconds
     width: int
     height: int
     fps: float
+    creation_date: date | None = None
 
 
 @dataclass
@@ -149,6 +150,7 @@ def setup_logging(verbose: bool) -> None:
 # Clip probing
 # ---------------------------------------------------------------------------
 
+
 def probe_clip(path: Path) -> ClipInfo | None:
     try:
         result = subprocess.run(
@@ -167,12 +169,16 @@ def probe_clip(path: Path) -> ClipInfo | None:
         if not video:
             return None
 
-        duration = float(data.get("format", {}).get("duration", 0))
+        fmt = data.get("format", {})
+        duration = float(fmt.get("duration", 0))
         if duration == 0:
             duration = float(video.get("duration", 0))
 
         num, den = video.get("r_frame_rate", "30/1").split("/")
         fps = int(num) / max(int(den), 1)
+
+        creation_time = fmt.get("tags", {}).get("creation_time", "")
+        creation_date = date.fromisoformat(creation_time[:10]) if creation_time else None
 
         return ClipInfo(
             path=path,
@@ -180,6 +186,7 @@ def probe_clip(path: Path) -> ClipInfo | None:
             width=video.get("width", 0),
             height=video.get("height", 0),
             fps=fps,
+            creation_date=creation_date,
         )
     except Exception as exc:
         logging.warning(f"Could not probe {path.name}: {exc}")
@@ -1040,7 +1047,7 @@ def main() -> None:
                         help="Anthropic API key (default: ANTHROPIC_API_KEY env var)")
     parser.add_argument("--output", type=Path, default=None, metavar="DIR",
                         help=f"Output directory for report.json, highlights.mp4, and any segments "
-                             f"(default: {DEFAULT_OUTPUT_BASE}/YYYY-MM-DD-HH-MM-SS/)")
+                             f"(default: {DEFAULT_OUTPUT_BASE}/YYYY-MM-DD/)")
     parser.add_argument("--prompt-file", type=Path, default=None, metavar="FILE",
                         help=f"Path to a custom scoring prompt (default: {DEFAULT_PROMPT_FILE.name} in the script directory)")
     parser.add_argument("--from-report", type=Path, default=None, metavar="FILE",
@@ -1056,7 +1063,7 @@ def main() -> None:
     parser.add_argument("--max-reel-duration", type=float, default=MAX_REEL_DURATION, metavar="SECS",
                         help=f"Maximum length per output clip in seconds (default: {int(MAX_REEL_DURATION)})")
     parser.add_argument("--clips", type=int, default=1, metavar="N",
-                        help="Number of highlight clips to generate — each picks the next-best moments not used in a prior clip (default: 1)")
+                        help="Number of highlight clips to generate — segments are partitioned chronologically, so clip 1 covers the start of the ride, clip 2 the middle, etc. (default: 1)")
     parser.add_argument("--transition", default="none",
                         choices=["none", "fade", "fadeblack"],
                         help="Transition between clips: none (hard cut, lossless), fade, fadeblack (default: none)")
@@ -1072,8 +1079,6 @@ def main() -> None:
     system_prompt = _load_prompt(args.prompt_file or DEFAULT_PROMPT_FILE)
     if args.prompt_file:
         logging.info(f"Using custom prompt: {args.prompt_file}")
-
-    run_dir = DEFAULT_OUTPUT_BASE / datetime.now().strftime("%Y-%m-%d")
 
     client: anthropic.Anthropic | None = None
 
@@ -1120,6 +1125,8 @@ def main() -> None:
 
     print_report(results)
 
+    footage_date = next((r.clip.creation_date for r in results if r.clip.creation_date), None)
+    run_dir = DEFAULT_OUTPUT_BASE / (footage_date or date.today()).isoformat()
     output_dir = args.output or run_dir
 
     save_json_report(results, output_dir / REPORT_FILENAME)
