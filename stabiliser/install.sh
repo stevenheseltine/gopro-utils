@@ -50,6 +50,7 @@ cat > "$PLIST" <<EOF
     <array>
         <string>$PYTHON</string>
         <string>$SCRIPT_DIR/stabilise_watch.py</string>
+        <string>--import-photos</string>
     </array>
 
     <key>RunAtLoad</key>

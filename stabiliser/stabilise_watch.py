@@ -280,6 +280,15 @@ def _patch_metadata(path: Path, tags: dict[str, str]) -> None:
             tmp.unlink()
 
 
+def _import_to_photos(path: Path) -> None:
+    script = f'tell application "Photos" to import {{POSIX file "{path.resolve()}"}}'
+    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=60)
+    if result.returncode != 0:
+        logging.error(f"[PHOTOS] Import failed for {path.name}: {result.stderr.strip()}")
+    else:
+        logging.info(f"[PHOTOS] Imported {path.name} to Photos")
+
+
 def _run_gyroflow(src: Path) -> subprocess.CompletedProcess:
     cmd = build_command(src)
     logging.info(f"[CMD]    {' '.join(cmd)}")
@@ -297,7 +306,7 @@ def _move_output(expected_output: Path, src: Path, processed_dir: Path) -> Path:
     return dest
 
 
-def process_file(src: Path, dirs: Dirs) -> None:
+def process_file(src: Path, dirs: Dirs, import_photos: bool = False) -> None:
     logging.info(f"[START]  {src.name}")
     expected_output = src.with_name(src.stem + OUTPUT_SUFFIX + src.suffix)
     source_tags = _read_format_tags(src)
@@ -334,13 +343,16 @@ def process_file(src: Path, dirs: Dirs) -> None:
     dest = _move_output(expected_output, src, dirs.processed)
     extract_gpmf_sidecar(src, dest.parent, dest.stem)
 
+    if import_photos:
+        _import_to_photos(dest)
+
     try:
         src.unlink()
     except OSError as exc:
         logging.warning(f"[WARN]   Could not remove staging file {src.name}: {exc}")
 
 
-def scan_once(already_seen: set[Path], dirs: Dirs) -> set[Path]:
+def scan_once(already_seen: set[Path], dirs: Dirs, import_photos: bool = False) -> set[Path]:
     newly_seen: set[Path] = set()
     for path in sorted(dirs.staging.iterdir()):
         if path.suffix.lower() not in VIDEO_EXTENSIONS:
@@ -350,7 +362,7 @@ def scan_once(already_seen: set[Path], dirs: Dirs) -> set[Path]:
         newly_seen.add(path)
         logging.info(f"[DETECT] {path.name} — waiting for copy to complete …")
         if wait_until_stable(path):
-            process_file(path, dirs)
+            process_file(path, dirs, import_photos=import_photos)
         else:
             logging.warning(f"[GONE]   {path.name} disappeared before processing")
             newly_seen.discard(path)
@@ -372,6 +384,11 @@ def main() -> None:
         action="store_true",
         help="process any files already in staging, then exit",
     )
+    parser.add_argument(
+        "--import-photos",
+        action="store_true",
+        help="import each stabilised clip into Apple Photos after processing",
+    )
     args = parser.parse_args()
 
     dirs = make_dirs(args.base_dir)
@@ -390,14 +407,14 @@ def main() -> None:
 
     if args.once:
         logging.info("--once mode: processing existing files and exiting")
-        scan_once(set(), dirs)
+        scan_once(set(), dirs, import_photos=args.import_photos)
         return
 
     logging.info(f"Watching {dirs.staging} (Ctrl-C to stop) …")
     seen: set[Path] = set()
     try:
         while True:
-            seen |= scan_once(seen, dirs)
+            seen |= scan_once(seen, dirs, import_photos=args.import_photos)
             time.sleep(SCAN_INTERVAL)
     except KeyboardInterrupt:
         logging.info("Stopped.")
